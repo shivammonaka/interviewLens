@@ -2,196 +2,439 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <title>InterviewLens — Generate LLM Prompt</title>
+  <title>InterviewLens — AI Review</title>
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Bebas+Neue&display=swap" rel="stylesheet">
   <style>
-    :root { --bg:#0a0a0a; --surface:#111; --border:#222; --accent:#e8ff00; --accent2:#ff3c3c; --text:#f0f0f0; --muted:#555; --green:#4caf50; }
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { background:var(--bg); color:var(--text); font-family:'Space Mono',monospace; min-height:100vh; }
-    body::before { content:''; position:fixed; inset:0; pointer-events:none; background-image:linear-gradient(rgba(232,255,0,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(232,255,0,.03) 1px,transparent 1px); background-size:20px 20px; }
+    :root {
+      --bg: #0a0a0a;
+      --surface: #111;
+      --surface2: #161616;
+      --border: #222;
+      --accent: #e8ff00;
+      --accent2: #ff3c3c;
+      --text: #f0f0f0;
+      --muted: #555;
+      --green: #4caf50;
+    }
 
-    .page { max-width:860px; margin:0 auto; padding:40px 24px 80px; position:relative; z-index:1; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    .header { display:flex; align-items:baseline; gap:16px; margin-bottom:40px; }
-    .logo { font-family:'Bebas Neue',sans-serif; font-size:32px; letter-spacing:4px; color:var(--accent); text-shadow:0 0 20px rgba(232,255,0,.3); }
-    .header-sub { font-size:10px; letter-spacing:3px; color:var(--muted); text-transform:uppercase; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      min-height: 100vh;
+    }
 
-    .grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px; }
-    @media (max-width:640px) { .grid { grid-template-columns:1fr; } }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(232,255,0,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(232,255,0,.03) 1px, transparent 1px);
+      background-size: 20px 20px;
+      z-index: 0;
+    }
 
-    .field { display:flex; flex-direction:column; gap:8px; }
-    .field-label { font-size:9px; letter-spacing:3px; color:var(--accent); text-transform:uppercase; }
-    .field-hint { font-size:10px; color:var(--muted); line-height:1.6; }
+    /* ── Layout ── */
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: flex-end;
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+
+    .logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 42px;
+      letter-spacing: 5px;
+      color: var(--accent);
+      text-shadow: 0 0 40px rgba(232,255,0,.35);
+      line-height: 1;
+    }
+
+    .header-sub {
+      font-size: 10px;
+      letter-spacing: 3px;
+      color: var(--muted);
+      text-transform: uppercase;
+      padding-bottom: 6px;
+    }
+
+    /* ── Section ── */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 28px;
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge {
+      background: rgba(232,255,0,.1);
+      border: 1px solid rgba(232,255,0,.2);
+      color: var(--accent);
+      font-size: 8px;
+      letter-spacing: 1px;
+      padding: 2px 7px;
+      border-radius: 3px;
+    }
+
+    .badge.optional {
+      background: rgba(255,255,255,.04);
+      border-color: var(--border);
+      color: var(--muted);
+    }
+
+    /* ── Transcript display ── */
+    #transcriptBox {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 16px;
+      font-size: 12px;
+      line-height: 1.8;
+      color: var(--text);
+      min-height: 120px;
+      max-height: 260px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      letter-spacing: .3px;
+    }
+
+    #transcriptBox.empty {
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* ── Textarea inputs ── */
+    .field-label {
+      font-size: 9px;
+      letter-spacing: 2px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
     textarea {
-      background:var(--surface); border:1px solid var(--border); border-radius:6px;
-      padding:12px 14px; color:var(--text); font-family:'Space Mono',monospace;
-      font-size:12px; line-height:1.7; outline:none; resize:vertical;
-      transition:border-color .2s; width:100%;
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 12px;
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      line-height: 1.7;
+      outline: none;
+      resize: vertical;
+      transition: border-color .2s;
+      letter-spacing: .3px;
     }
-    textarea:focus { border-color:var(--accent); }
-    textarea::placeholder { color:var(--muted); }
-    #problemInput { min-height:180px; }
-    #codeInput    { min-height:180px; }
 
-    .transcript-box {
-      background:var(--surface); border:1px solid var(--border); border-radius:6px;
-      padding:14px; font-size:11px; line-height:1.8; color:var(--muted);
-      max-height:120px; overflow-y:auto; white-space:pre-wrap; word-break:break-word;
-      margin-bottom:20px;
+    textarea:focus { border-color: var(--accent); }
+    textarea::placeholder { color: var(--muted); }
+
+    #problemInput { min-height: 90px; }
+    #codeInput    { min-height: 120px; font-size: 11px; }
+
+    /* ── Prompt output ── */
+    #promptBox {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 16px;
+      font-size: 11px;
+      line-height: 1.8;
+      color: #aaa;
+      min-height: 160px;
+      max-height: 380px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      letter-spacing: .3px;
+      cursor: text;
+      user-select: text;
     }
-    .transcript-box::-webkit-scrollbar { width:3px; }
-    .transcript-box::-webkit-scrollbar-thumb { background:var(--border); }
-    .transcript-box.loaded { color:var(--text); }
 
-    .actions { display:flex; gap:12px; align-items:center; }
-    .copy-btn {
-      font-family:'Space Mono',monospace; font-size:11px; letter-spacing:2px;
-      text-transform:uppercase; background:var(--accent); color:#000;
-      border:none; padding:14px 32px; border-radius:4px; cursor:pointer;
-      transition:all .2s; font-weight:700;
+    #promptBox.empty { color: var(--muted); font-style: italic; }
+    #promptBox.has-content { color: var(--text); }
+
+    /* ── Action bar ── */
+    .action-bar {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+      flex-wrap: wrap;
     }
-    .copy-btn:hover { background:#fff; }
-    .copy-btn:disabled { opacity:.4; cursor:not-allowed; }
-    .copy-btn.copied { background:var(--green); color:#000; }
-    .status-msg { font-size:10px; letter-spacing:1px; color:var(--muted); }
-    .status-msg.ok { color:var(--green); }
-    .status-msg.err { color:var(--accent2); }
 
-    .section-label { font-size:9px; letter-spacing:3px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid var(--border); }
+    .btn {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      border: none;
+      border-radius: 4px;
+      padding: 10px 20px;
+      cursor: pointer;
+      transition: all .2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+      font-weight: 700;
+    }
+    .btn-primary:hover { background: #fff; }
+    .btn-primary:disabled { background: #333; color: var(--muted); cursor: not-allowed; }
+
+    .btn-ghost {
+      background: none;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { color: var(--text); border-color: #444; }
+
+    .btn-danger {
+      background: none;
+      color: var(--accent2);
+      border: 1px solid rgba(255,60,60,.25);
+    }
+    .btn-danger:hover { background: rgba(255,60,60,.08); }
+
+    .btn .icon { font-size: 13px; line-height: 1; }
+
+    /* ── Divider ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 20px 0;
+    }
+
+    /* ── Status / Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 20px;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: var(--accent);
+      opacity: 0;
+      transition: opacity .25s, transform .25s;
+      pointer-events: none;
+      z-index: 100;
+      white-space: nowrap;
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    #toast.error {
+      color: var(--accent2);
+      border-color: rgba(255,60,60,.3);
+    }
+
+    /* ── Loading state ── */
+    #loadingState {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 2px;
+    }
+
+    .spin {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin-right: 10px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Empty state ── */
+    #emptyState {
+      text-align: center;
+      padding: 60px 20px;
+    }
+
+    .empty-icon { font-size: 40px; margin-bottom: 16px; }
+    .empty-title { font-size: 14px; letter-spacing: 2px; color: var(--text); margin-bottom: 10px; }
+    .empty-desc { font-size: 10px; letter-spacing: 1px; color: var(--muted); line-height: 1.8; }
+
+    /* ── Token count ── */
+    .meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+
+    .meta-text {
+      font-size: 9px;
+      letter-spacing: 1px;
+      color: var(--muted);
+    }
+
+    .char-count { color: #666; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #333; }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      .page { padding: 24px 16px 60px; }
+      .logo { font-size: 32px; }
+      .action-bar { flex-direction: column; }
+      .btn { justify-content: center; }
+    }
   </style>
 </head>
 <body>
-<div class="page">
-  <div class="header">
-    <div class="logo">INTERVIEWLENS</div>
-    <div class="header-sub">Generate LLM Prompt</div>
-  </div>
+  <div class="page">
 
-  <!-- Transcript preview -->
-  <div class="section-label">Transcript</div>
-  <div class="transcript-box" id="transcriptPreview">Loading transcript…</div>
-
-  <!-- Problem + Code -->
-  <div class="section-label">Context (optional)</div>
-  <div class="grid">
-    <div class="field">
-      <label class="field-label" for="problemInput">Problem Statement</label>
-      <div class="field-hint">Paste the question from Leetcode, HackerRank, etc.</div>
-      <textarea id="problemInput" placeholder="Paste the problem description here…"></textarea>
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">INTERVIEWLENS</div>
+      <div class="header-sub">AI Review</div>
     </div>
-    <div class="field">
-      <label class="field-label" for="codeInput">Your Code</label>
-      <div class="field-hint">Paste the solution you wrote during the interview.</div>
-      <textarea id="codeInput" placeholder="Paste your solution here…"></textarea>
+
+    <!-- Loading -->
+    <div id="loadingState">
+      <span class="spin"></span> Loading transcript…
     </div>
-  </div>
 
-  <div class="actions">
-    <button class="copy-btn" id="copyBtn" disabled>Copy full prompt</button>
-    <span class="status-msg" id="statusMsg"></span>
-  </div>
-</div>
+    <!-- Empty state (no transcript) -->
+    <div id="emptyState" style="display:none">
+      <div class="empty-icon">📭</div>
+      <div class="empty-title">No Transcript Found</div>
+      <div class="empty-desc">
+        Transcribe a recording first, then click<br>
+        "Copy for LLM" to open this page.
+      </div>
+    </div>
 
-<script>
-// ── Load template from storage ─────────────────────────────────────────────
-const DEFAULT_LLM_TEMPLATE =
-`You are an expert technical interview coach. Analyze the following interview transcript and give me brutally honest, actionable feedback.
+    <!-- Main content -->
+    <div id="mainContent" style="display:none">
 
----
+      <!-- Transcript -->
+      <div class="section">
+        <div class="section-title">
+          Transcript <span class="badge">Required</span>
+        </div>
+        <div id="transcriptBox"></div>
+        <div class="meta-row">
+          <span class="meta-text char-count" id="transcriptChars"></span>
+          <button class="btn btn-ghost" id="clearTranscriptBtn" style="padding:6px 12px; font-size:9px;">
+            <span class="icon">✕</span> Clear
+          </button>
+        </div>
+      </div>
 
-{{transcript}}
+      <!-- Optional: Problem statement -->
+      <div class="section">
+        <div class="section-title">
+          Problem Statement <span class="badge optional">Optional</span>
+        </div>
+        <div class="field-label">Paste the interview problem here</div>
+        <textarea id="problemInput" placeholder="e.g. Given an array of integers, return indices of the two numbers that add up to a target…"></textarea>
+      </div>
 
----
-{{problem}}{{code}}
-Evaluate me on these dimensions:
+      <!-- Optional: Code -->
+      <div class="section">
+        <div class="section-title">
+          Your Code <span class="badge optional">Optional</span>
+        </div>
+        <div class="field-label">Paste your solution code here</div>
+        <textarea id="codeInput" placeholder="def two_sum(nums, target):&#10;    seen = {}&#10;    for i, n in enumerate(nums):&#10;        if target - n in seen:&#10;            return [seen[target - n], i]&#10;        seen[n] = i"></textarea>
+      </div>
 
-**Communication**
-- Did I explain my thought process out loud before coding?
-- Did I walk through my approach step by step?
-- Did I talk while coding or go silent?
-- Did I ask clarifying questions?
+      <!-- LLM Prompt output -->
+      <div class="section">
+        <div class="section-title">
+          LLM Prompt <span class="badge">Ready to copy</span>
+        </div>
+        <div id="promptBox" class="empty">Click "Build Prompt" to generate your LLM prompt…</div>
+        <div class="meta-row">
+          <span class="meta-text char-count" id="promptChars"></span>
+          <span class="meta-text" id="promptHint" style="color:#333;">Tip: paste into ChatGPT, Claude, or Gemini</span>
+        </div>
+        <div class="action-bar">
+          <button class="btn btn-primary" id="buildBtn">
+            <span class="icon">⚡</span> Build Prompt
+          </button>
+          <button class="btn btn-primary" id="copyBtn" style="display:none">
+            <span class="icon">📋</span> Copy to Clipboard
+          </button>
+          <button class="btn btn-ghost" id="openAiBtn" style="display:none" title="Open Claude.ai in a new tab">
+            <span class="icon">🤖</span> Open Claude
+          </button>
+          <button class="btn btn-ghost" id="openChatGptBtn" style="display:none" title="Open ChatGPT in a new tab">
+            <span class="icon">💬</span> Open ChatGPT
+          </button>
+        </div>
+      </div>
 
-**Technical Reasoning**
-- Did I discuss the algorithm and why I chose it?
-- Did I mention time and space complexity?
-- Did I consider edge cases?
-- Did I propose brute force first then optimize?
+      <!-- Danger zone -->
+      <div class="section" style="border-color: rgba(255,60,60,.15);">
+        <div class="section-title" style="color: var(--accent2);">Danger Zone</div>
+        <div style="font-size:10px; color:var(--muted); margin-bottom:14px; line-height:1.7;">
+          Discard the transcript from storage. This only removes it from this review page — your saved recordings are unaffected.
+        </div>
+        <button class="btn btn-danger" id="discardBtn">
+          <span class="icon">🗑</span> Discard Transcript
+        </button>
+      </div>
 
-**Problem Solving Approach**
-- Did I break the problem down before jumping to code?
-- Did I get stuck and how did I recover?
-- Did I validate my solution with examples?
+    </div><!-- /mainContent -->
+  </div><!-- /page -->
 
-**Strong Points**
-List what I did well. Be specific with moments from the transcript.
+  <!-- Toast -->
+  <div id="toast"></div>
 
-**Weak Points & What to Improve**
-List exactly where I fumbled. Be direct — no sugarcoating. For each weak point, tell me specifically what I should have said or done instead.
-
-**Overall Assessment**
-One short paragraph summary. End with the single most important habit I need to build before my next interview.`;
-
-async function buildPrompt(transcript, problem, code) {
-  const { llmTemplate } = await chrome.storage.local.get('llmTemplate');
-  const template = (llmTemplate && llmTemplate.trim()) || DEFAULT_LLM_TEMPLATE;
-  const problemSection = problem.trim() ? `\n**Problem Statement:**\n${problem.trim()}\n` : '';
-  const codeSection    = code.trim()    ? `\n**My Code:**\n\`\`\`\n${code.trim()}\n\`\`\`\n` : '';
-  return template
-    .replace(/\{\{transcript\}\}/g, transcript)
-    .replace(/\{\{problem\}\}/g, problemSection)
-    .replace(/\{\{code\}\}/g, codeSection);
-}
-
-// ── Init ───────────────────────────────────────────────────────────────────
-const preview   = document.getElementById('transcriptPreview');
-const copyBtn   = document.getElementById('copyBtn');
-const statusMsg = document.getElementById('statusMsg');
-
-let transcript = '';
-
-async function waitForTranscript(maxWaitMs = 5000) {
-  const start = Date.now();
-  while (Date.now() - start < maxWaitMs) {
-    const result = await chrome.storage.local.get('llmTranscript');
-    if (result.llmTranscript) return result.llmTranscript;
-    await new Promise(r => setTimeout(r, 150));
-  }
-  return null;
-}
-
-waitForTranscript().then(t => {
-  if (t) {
-    transcript = t;
-    preview.textContent = transcript;
-    preview.classList.add('loaded');
-    copyBtn.disabled = false;
-    chrome.storage.local.remove('llmTranscript');
-  } else {
-    preview.textContent = 'No transcript found. Open the extension, transcribe a recording, then click "Generate LLM Prompt".';
-    statusMsg.textContent = 'No transcript loaded.';
-    statusMsg.className = 'status-msg err';
-  }
-});
-
-copyBtn.addEventListener('click', async () => {
-  const problem = document.getElementById('problemInput').value;
-  const code    = document.getElementById('codeInput').value;
-  const prompt  = await buildPrompt(transcript, problem, code);
-  try {
-    await navigator.clipboard.writeText(prompt);
-    copyBtn.textContent = '✓ Copied!';
-    copyBtn.classList.add('copied');
-    statusMsg.textContent = 'Prompt copied — paste it into your LLM.';
-    statusMsg.className = 'status-msg ok';
-    setTimeout(() => {
-      copyBtn.textContent = 'Copy full prompt';
-      copyBtn.classList.remove('copied');
-    }, 3000);
-  } catch {
-    statusMsg.textContent = 'Copy failed — try again.';
-    statusMsg.className = 'status-msg err';
-  }
-});
-</script>
+  <script src="review.js"></script>
 </body>
 </html>
