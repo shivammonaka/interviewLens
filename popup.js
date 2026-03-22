@@ -22,6 +22,8 @@ const clearBtn     = document.getElementById('clearBtn');
 const notifEl      = document.getElementById('notif');
 const settingsBtn  = document.getElementById('settingsBtn');
 const floatBtn     = document.getElementById('floatBtn');
+const uploadBtn    = document.getElementById('uploadBtn');
+const uploadInput  = document.getElementById('uploadInput');
 // Review panel
 const reviewDur    = document.getElementById('reviewDuration');
 const mpBtn        = document.getElementById('mpBtn');
@@ -86,6 +88,25 @@ floatBtn.addEventListener('click', () => {
     width: 380,
     height: 600,
   });
+});
+
+// Upload audio — reads file as data URL and sends straight to review panel
+uploadBtn.addEventListener('click', () => uploadInput.click());
+uploadInput.addEventListener('change', () => {
+  const file = uploadInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = reader.result;
+    const now = new Date();
+    const name = file.name.replace(/\.[^.]+$/, '') ||
+      `Upload_${now.toISOString().slice(0,10)}_${now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'}).replace(/:/g,'-')}`;
+    // Fake duration as 0:00 — we don't decode audio just to get length
+    showReview({ name, dataUrl, duration: '—', timestamp: Date.now() });
+  };
+  reader.readAsDataURL(file);
+  // Reset so same file can be re-uploaded
+  uploadInput.value = '';
 });
 
 // ── Tabs ──────────────────────────────────────────────────────────────────
