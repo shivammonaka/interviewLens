@@ -214,7 +214,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         await saveStorage();
         chrome.downloads.download({
           url: rec.dataUrl,
-          filename: `AudioRecordings/${rec.name}.webm`,
+          filename: `InterviewLens/${rec.name}.webm`,
           saveAs: false, conflictAction: 'uniquify'
         });
         sendResponse({ ok: true, recordings: state.recordings });
@@ -229,7 +229,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       case 'DOWNLOAD_RECORDING': {
         const rec = state.recordings[msg.index];
         if (!rec) { sendResponse({ ok: false }); break; }
-        chrome.downloads.download({ url: rec.dataUrl, filename: `AudioRecordings/${rec.name}.webm`, saveAs: false, conflictAction: 'uniquify' });
+        chrome.downloads.download({ url: rec.dataUrl, filename: `InterviewLens/${rec.name}.webm`, saveAs: false, conflictAction: 'uniquify' });
         sendResponse({ ok: true });
         break;
       }
@@ -294,6 +294,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         }
         break;
       }
+
+      case 'SAVE_LLM_TRANSCRIPT':
+        await chrome.storage.local.set({ llmTranscript: msg.text });
+        sendResponse({ ok: true });
+        break;
 
       default:
         break;

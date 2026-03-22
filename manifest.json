@@ -8,7 +8,9 @@
     "unlimitedStorage",
     "downloads",
     "offscreen",
-    "alarms"
+    "alarms",
+    "tabs",
+    "windows"
   ],
   "options_page": "options.html",
   "background": {

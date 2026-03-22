@@ -96,15 +96,42 @@ const resetDecoratorBtn = document.getElementById('resetDecoratorBtn');
 const decoratorStatus   = document.getElementById('decoratorStatus');
 
 // Keep in sync with DEFAULT_LLM_TEMPLATE in popup.js
-const DEFAULT_DECORATOR = `The following is a transcript from an interview recording.
-
-Please read the transcript carefully and be ready to help me with questions, summaries, action items, or any analysis I ask for.
+const DEFAULT_DECORATOR =
+`You are an expert technical interview coach. Analyze the following interview transcript and give me brutally honest, actionable feedback.
 
 ---
 
 {{transcript}}
 
----`;
+---
+{{problem}}{{code}}
+Evaluate me on these dimensions:
+
+**Communication**
+- Did I explain my thought process out loud before coding?
+- Did I walk through my approach step by step?
+- Did I talk while coding or go silent?
+- Did I ask clarifying questions?
+
+**Technical Reasoning**
+- Did I discuss the algorithm and why I chose it?
+- Did I mention time and space complexity?
+- Did I consider edge cases?
+- Did I propose brute force first then optimize?
+
+**Problem Solving Approach**
+- Did I break the problem down before jumping to code?
+- Did I get stuck and how did I recover?
+- Did I validate my solution with examples?
+
+**Strong Points**
+List what I did well. Be specific with moments from the transcript.
+
+**Weak Points & What to Improve**
+List exactly where I fumbled. Be direct — no sugarcoating. For each weak point, tell me specifically what I should have said or done instead.
+
+**Overall Assessment**
+One short paragraph summary. End with the single most important habit I need to build before my next interview.`;
 
 async function loadDecorator() {
   const { llmTemplate } = await chrome.storage.local.get('llmTemplate');
