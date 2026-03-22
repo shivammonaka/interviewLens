@@ -32,6 +32,9 @@ const nameInput    = document.getElementById('nameInput');
 const saveBtn      = document.getElementById('saveBtn');
 const discardBtn   = document.getElementById('discardBtn');
 const reviewTranscribeBtn = document.getElementById('reviewTranscribeBtn');
+const reviewTranscriptActions = document.getElementById('reviewTranscriptActions');
+const reviewCopyBtn    = document.getElementById('reviewCopyBtn');
+const reviewCopyLlmBtn = document.getElementById('reviewCopyLlmBtn');
 // Library player
 const nowPlaying   = document.getElementById('nowPlaying');
 const npName       = document.getElementById('npName');
@@ -47,6 +50,7 @@ const modalBody    = document.getElementById('modalBody');
 const transcriptText = document.getElementById('transcriptText');
 const modalActions = document.getElementById('modalActions');
 const copyBtn      = document.getElementById('copyBtn');
+const copyLlmBtn   = document.getElementById('copyLlmBtn');
 const retranscribeBtn = document.getElementById('retranscribeBtn');
 
 const ctx = canvas.getContext('2d');
@@ -171,6 +175,12 @@ function showReview(rec) {
   reviewTranscribeBtn.querySelector('span').textContent = rec.transcript
     ? '⚡ Re-transcribe with Groq'
     : '⚡ Transcribe with Groq';
+  // Show copy buttons only if transcript already exists
+  reviewTranscriptActions.style.display = rec.transcript ? 'flex' : 'none';
+  reviewCopyBtn.textContent = 'Copy text';
+  reviewCopyBtn.classList.remove('copied');
+  reviewCopyLlmBtn.textContent = 'Copy for LLM';
+  reviewCopyLlmBtn.classList.remove('copied');
   if (reviewAudio) { reviewAudio.pause(); reviewAudio = null; }
   switchTab('review');
 }
@@ -207,6 +217,29 @@ mpProgress.addEventListener('click', e => {
   reviewAudio.currentTime = (e.offsetX / mpProgress.offsetWidth) * reviewAudio.duration;
 });
 
+// Copy text from review panel
+reviewCopyBtn.addEventListener('click', () => {
+  const text = pendingRec?.transcript;
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    reviewCopyBtn.textContent = '✓ Copied!';
+    reviewCopyBtn.classList.add('copied');
+    setTimeout(() => { reviewCopyBtn.textContent = 'Copy text'; reviewCopyBtn.classList.remove('copied'); }, 2000);
+  });
+});
+
+// Copy for LLM from review panel
+reviewCopyLlmBtn.addEventListener('click', async () => {
+  const text = pendingRec?.transcript;
+  if (!text) return;
+  const prompt = await buildLlmPrompt(text);
+  navigator.clipboard.writeText(prompt).then(() => {
+    reviewCopyLlmBtn.textContent = '✓ Copied!';
+    reviewCopyLlmBtn.classList.add('copied');
+    setTimeout(() => { reviewCopyLlmBtn.textContent = 'Copy for LLM'; reviewCopyLlmBtn.classList.remove('copied'); }, 2000);
+  });
+});
+
 // Transcribe button in review panel
 reviewTranscribeBtn.addEventListener('click', async () => {
   if (!pendingRec?.dataUrl) return;
@@ -222,6 +255,10 @@ reviewTranscribeBtn.addEventListener('click', async () => {
   if (res.ok) {
     pendingRec.transcript = res.text;
     reviewTranscribeBtn.querySelector('span').textContent = '✓ Transcribed — view';
+    // Show copy buttons now that we have a transcript
+    reviewTranscriptActions.style.display = 'flex';
+    reviewCopyBtn.textContent = 'Copy text';
+    reviewCopyLlmBtn.textContent = 'Copy for LLM';
     // Open modal immediately
     openTranscriptModal(-1, pendingRec.name, res.text, false);
   } else {
@@ -264,6 +301,25 @@ discardBtn.addEventListener('click', async () => {
 });
 
 // ── Transcript Modal ───────────────────────────────────────────────────────
+
+// ── LLM prompt builder ────────────────────────────────────────────────────
+// Default used when no custom template is saved in options
+const DEFAULT_LLM_TEMPLATE = `The following is a transcript from an interview recording.
+
+Please read the transcript carefully and be ready to help me with questions, summaries, action items, or any analysis I ask for.
+
+---
+
+{{transcript}}
+
+---`;
+
+async function buildLlmPrompt(text) {
+  const { llmTemplate } = await chrome.storage.local.get('llmTemplate');
+  const template = (llmTemplate && llmTemplate.trim()) || DEFAULT_LLM_TEMPLATE;
+  return template.replace(/\{\{transcript\}\}/g, text);
+}
+
 function openTranscriptModal(index, name, text, showRetranscribe = true) {
   modalRecIndex = index;
   modalRecName.textContent = name;
@@ -274,6 +330,8 @@ function openTranscriptModal(index, name, text, showRetranscribe = true) {
   retranscribeBtn.style.display = showRetranscribe ? 'block' : 'none';
   copyBtn.textContent = 'Copy text';
   copyBtn.classList.remove('copied');
+  copyLlmBtn.textContent = 'Copy for LLM';
+  copyLlmBtn.classList.remove('copied');
   transcriptModal.classList.add('open');
 }
 
@@ -292,8 +350,11 @@ function showModalError(msg) {
 modalClose.addEventListener('click', () => transcriptModal.classList.remove('open'));
 transcriptModal.addEventListener('click', e => {
   if (e.target === transcriptModal) transcriptModal.classList.remove('open');
+  // Handle "Open Settings" links injected into modal error HTML
+  if (e.target.classList.contains('open-settings')) chrome.runtime.openOptionsPage();
 });
 
+// Copy raw transcript
 copyBtn.addEventListener('click', () => {
   const text = transcriptText.textContent;
   if (!text) return;
@@ -301,6 +362,18 @@ copyBtn.addEventListener('click', () => {
     copyBtn.textContent = '✓ Copied!';
     copyBtn.classList.add('copied');
     setTimeout(() => { copyBtn.textContent = 'Copy text'; copyBtn.classList.remove('copied'); }, 2000);
+  });
+});
+
+// Copy transcript wrapped in LLM-ready prompt
+copyLlmBtn.addEventListener('click', async () => {
+  const text = transcriptText.textContent;
+  if (!text) return;
+  const prompt = await buildLlmPrompt(text);
+  navigator.clipboard.writeText(prompt).then(() => {
+    copyLlmBtn.textContent = '✓ Copied!';
+    copyLlmBtn.classList.add('copied');
+    setTimeout(() => { copyLlmBtn.textContent = 'Copy for LLM'; copyLlmBtn.classList.remove('copied'); }, 2000);
   });
 });
 
@@ -316,7 +389,7 @@ retranscribeBtn.addEventListener('click', async () => {
     openTranscriptModal(modalRecIndex, rec.name, res.text, true);
   } else {
     if (res.error?.includes('No API key')) {
-      showModalError('No Groq API key found.<br><a onclick="chrome.runtime.openOptionsPage()">Open Settings</a> to add one.');
+      showModalError('No Groq API key found.<br><a class="open-settings" style="cursor:pointer;color:var(--accent)">Open Settings</a> to add one.');
     } else {
       showModalError(res.error || 'Transcription failed. Please try again.');
     }
@@ -511,7 +584,7 @@ async function handleTranscriptBtn(i, btn) {
     openTranscriptModal(i, rec.name, res.text, true);
   } else {
     if (res.error?.includes('No API key')) {
-      showModalError('No Groq API key found.<br><a style="cursor:pointer;color:var(--accent)" onclick="chrome.runtime.openOptionsPage()">Open Settings to add one.</a>');
+      showModalError('No Groq API key found.<br><a class="open-settings" style="cursor:pointer;color:var(--accent)">Open Settings to add one.</a>');
     } else {
       showModalError(res.error || 'Transcription failed. Please try again.');
     }

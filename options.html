@@ -49,6 +49,13 @@
 
     .clear-key { font-family:'Space Mono',monospace; font-size:9px; letter-spacing:1px; color:var(--muted); background:none; border:1px solid var(--border); border-radius:3px; padding:3px 8px; cursor:pointer; margin-left:8px; }
     .clear-key:hover { color:var(--accent2); border-color:var(--accent2); }
+
+    /* LLM decorator */
+    .decorator-textarea { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:10px 12px; color:var(--text); font-family:'Space Mono',monospace; font-size:11px; line-height:1.7; outline:none; resize:vertical; min-height:140px; transition:border-color .2s; letter-spacing:.3px; }
+    .decorator-textarea:focus { border-color:var(--accent); }
+    .decorator-textarea::placeholder { color:var(--muted); }
+    .decorator-hint { font-size:10px; color:var(--muted); margin-top:8px; line-height:1.7; }
+    .decorator-hint code { color:var(--accent); background:rgba(232,255,0,.07); padding:1px 5px; border-radius:3px; font-family:'Space Mono',monospace; }
   </style>
 </head>
 <body>
@@ -85,6 +92,22 @@
       </div>
       <div class="status" id="keyStatus"></div>
     </div>
+    <!-- LLM Decorator -->
+    <div class="section">
+      <div class="section-title">LLM Prompt Decorator</div>
+      <div class="field-label">Prompt template</div>
+      <textarea class="decorator-textarea" id="decoratorInput" placeholder="Leave blank to use the default template…" spellcheck="false"></textarea>
+      <div class="decorator-hint">
+        Use <code>{{transcript}}</code> where you want the transcript inserted.<br>
+        If left blank, the default template is used when copying for LLM.
+      </div>
+      <div class="field-row" style="margin-top:12px;">
+        <button class="save-btn" id="saveDecoratorBtn">Save</button>
+        <button class="save-btn" id="resetDecoratorBtn" style="background:none;color:var(--muted);border:1px solid var(--border);">Reset to default</button>
+      </div>
+      <div class="status" id="decoratorStatus"></div>
+    </div>
+
   </div>
   <script src="options.js"></script>
 </body>

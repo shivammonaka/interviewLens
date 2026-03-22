@@ -89,3 +89,53 @@ saveKeyBtn.addEventListener('click', async () => {
 });
 
 loadKey();
+// ── LLM Prompt Decorator ──────────────────────────────────────────────────
+const decoratorInput    = document.getElementById('decoratorInput');
+const saveDecoratorBtn  = document.getElementById('saveDecoratorBtn');
+const resetDecoratorBtn = document.getElementById('resetDecoratorBtn');
+const decoratorStatus   = document.getElementById('decoratorStatus');
+
+// Keep in sync with DEFAULT_LLM_TEMPLATE in popup.js
+const DEFAULT_DECORATOR = `The following is a transcript from an interview recording.
+
+Please read the transcript carefully and be ready to help me with questions, summaries, action items, or any analysis I ask for.
+
+---
+
+{{transcript}}
+
+---`;
+
+async function loadDecorator() {
+  const { llmTemplate } = await chrome.storage.local.get('llmTemplate');
+  // Show saved template, or leave blank (placeholder explains the default is used)
+  decoratorInput.value = llmTemplate || '';
+}
+
+saveDecoratorBtn.addEventListener('click', async () => {
+  const val = decoratorInput.value.trim();
+  if (val && !val.includes('{{transcript}}')) {
+    decoratorStatus.className = 'status error';
+    decoratorStatus.textContent = 'Template must include {{transcript}} so the transcription is inserted.';
+    return;
+  }
+  // Save empty string as null so popup knows to use the default
+  if (val) {
+    await chrome.storage.local.set({ llmTemplate: val });
+  } else {
+    await chrome.storage.local.remove('llmTemplate');
+  }
+  decoratorStatus.className = 'status success';
+  decoratorStatus.textContent = val ? '✓ Template saved.' : '✓ Cleared — default template will be used.';
+  setTimeout(() => { decoratorStatus.className = 'status'; }, 3000);
+});
+
+resetDecoratorBtn.addEventListener('click', async () => {
+  await chrome.storage.local.remove('llmTemplate');
+  decoratorInput.value = '';
+  decoratorStatus.className = 'status info';
+  decoratorStatus.textContent = 'Reset to default template.';
+  setTimeout(() => { decoratorStatus.className = 'status'; }, 3000);
+});
+
+loadDecorator();
