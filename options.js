@@ -89,7 +89,48 @@ saveKeyBtn.addEventListener('click', async () => {
 });
 
 loadKey();
-// ── LLM Prompt Decorator ──────────────────────────────────────────────────
+// ── Gemini API key ────────────────────────────────────────────────────────
+const geminiInput   = document.getElementById('geminiInput');
+const saveGeminiBtn = document.getElementById('saveGeminiBtn');
+const geminiStatus  = document.getElementById('geminiStatus');
+const geminiPreview = document.getElementById('geminiPreview');
+
+async function loadGeminiKey() {
+  const { geminiKey } = await chrome.storage.local.get('geminiKey');
+  if (geminiKey) {
+    geminiPreview.innerHTML = `Saved key: <span>${maskKey(geminiKey)}</span> <button class="clear-key" id="clearGeminiBtn">Remove</button>`;
+    document.getElementById('clearGeminiBtn').addEventListener('click', async () => {
+      await chrome.storage.local.remove('geminiKey');
+      geminiInput.value = '';
+      geminiPreview.textContent = '';
+      geminiStatus.className = 'status info';
+      geminiStatus.textContent = 'Gemini API key removed.';
+    });
+  } else {
+    geminiPreview.textContent = '';
+  }
+}
+
+saveGeminiBtn.addEventListener('click', async () => {
+  const key = geminiInput.value.trim();
+  if (!key) {
+    geminiStatus.className = 'status error';
+    geminiStatus.textContent = 'Please enter an API key.';
+    return;
+  }
+  if (!key.startsWith('AIza')) {
+    geminiStatus.className = 'status error';
+    geminiStatus.textContent = 'Gemini API keys start with "AIza". Please check your key.';
+    return;
+  }
+  await chrome.storage.local.set({ geminiKey: key });
+  geminiInput.value = '';
+  geminiStatus.className = 'status success';
+  geminiStatus.textContent = '✓ Gemini API key saved.';
+  loadGeminiKey();
+});
+
+loadGeminiKey();
 const decoratorInput    = document.getElementById('decoratorInput');
 const saveDecoratorBtn  = document.getElementById('saveDecoratorBtn');
 const resetDecoratorBtn = document.getElementById('resetDecoratorBtn');

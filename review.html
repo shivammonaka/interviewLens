@@ -13,6 +13,7 @@
       --accent2: #ff3c3c;
       --text: #f0f0f0;
       --muted: #555;
+      --green: #4caf50;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -128,11 +129,58 @@
     #problemInput { min-height: 90px; }
     #codeInput    { min-height: 130px; }
 
+    /* ── Model toggle ── */
+    .model-toggle {
+      display: flex;
+      gap: 0;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px;
+      width: fit-content;
+      margin-bottom: 20px;
+    }
+
+    .model-btn {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: none;
+      border: none;
+      color: var(--muted);
+      padding: 8px 18px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all .2s;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .model-btn.active {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .model-btn .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .model-btn.active .dot { background: var(--accent); }
+
+    /* ── Action bar ── */
     .action-bar {
       display: flex;
       gap: 10px;
       margin-top: 24px;
       flex-wrap: wrap;
+      align-items: center;
     }
 
     .btn {
@@ -152,10 +200,58 @@
 
     .btn-primary { background: var(--accent); color: #000; font-weight: 700; }
     .btn-primary:hover { background: #fff; }
+    .btn-primary:disabled { background: #222; color: var(--muted); cursor: not-allowed; }
 
     .btn-ghost { background: none; color: var(--muted); border: 1px solid var(--border); }
     .btn-ghost:hover { color: var(--text); border-color: #444; }
 
+    /* ── Streaming output ── */
+    #analysisSection { display: none; }
+
+    #analysisOutput {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 20px;
+      font-size: 12px;
+      line-height: 1.9;
+      color: var(--text);
+      min-height: 120px;
+      max-height: 600px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      letter-spacing: .3px;
+    }
+
+    #analysisOutput.streaming { color: #ccc; }
+
+    .cursor {
+      display: inline-block;
+      width: 2px;
+      height: 14px;
+      background: var(--accent);
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: blink .8s step-end infinite;
+    }
+
+    @keyframes blink { 50% { opacity: 0; } }
+
+    .analysis-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 12px;
+    }
+
+    .model-tag {
+      font-size: 9px;
+      letter-spacing: 1px;
+      color: var(--muted);
+    }
+
+    /* ── Empty / loading ── */
     #loadingState, #emptyState {
       text-align: center;
       padding: 80px 20px;
@@ -168,6 +264,7 @@
     .empty-title { font-size: 14px; letter-spacing: 2px; color: var(--text); margin-bottom: 10px; }
     .empty-desc { font-size: 10px; color: var(--muted); line-height: 1.8; }
 
+    /* ── Toast ── */
     #toast {
       position: fixed;
       bottom: 28px;
@@ -196,6 +293,9 @@
       .page { padding: 24px 16px 60px; }
       .logo { font-size: 32px; }
       .action-bar { flex-direction: column; }
+      .btn { justify-content: center; width: 100%; }
+      .model-toggle { width: 100%; }
+      .model-btn { flex: 1; justify-content: center; }
     }
   </style>
 </head>
@@ -220,6 +320,21 @@
 
     <div id="mainContent" style="display:none">
 
+      <!-- Model selector -->
+      <div class="section">
+        <div class="section-title">AI Model</div>
+        <div class="model-toggle">
+          <button class="model-btn active" id="btnGroq" data-model="groq">
+            <span class="dot"></span> Groq
+          </button>
+          <button class="model-btn" id="btnGemini" data-model="gemini">
+            <span class="dot"></span> Gemini
+          </button>
+        </div>
+        <div class="field-label" id="modelHint">Using llama-3.3-70b · free · fast</div>
+      </div>
+
+      <!-- Problem statement -->
       <div class="section">
         <div class="section-title">
           Problem Statement <span class="badge-optional">Optional</span>
@@ -228,6 +343,7 @@
         <textarea id="problemInput" placeholder="e.g. Given an array of integers, return indices of the two numbers that add up to a target…"></textarea>
       </div>
 
+      <!-- Code -->
       <div class="section">
         <div class="section-title">
           Your Code <span class="badge-optional">Optional</span>
@@ -241,16 +357,30 @@
         seen[n] = i"></textarea>
       </div>
 
+      <!-- Actions -->
       <div class="action-bar">
-        <button class="btn btn-primary" id="copyBtn">
-          <span>📋</span> Copy Prompt for LLM
+        <button class="btn btn-primary" id="analyzeBtn">
+          <span>⚡</span> Analyze with AI
         </button>
-        <button class="btn btn-ghost" id="openClaudeBtn">
-          <span>🤖</span> Open Claude
+        <button class="btn btn-ghost" id="copyBtn">
+          <span>📋</span> Copy Prompt
         </button>
-        <button class="btn btn-ghost" id="openChatGptBtn">
-          <span>💬</span> Open ChatGPT
-        </button>
+        <button class="btn btn-ghost" id="openClaudeBtn">🤖 Open Claude</button>
+        <button class="btn btn-ghost" id="openChatGptBtn">💬 ChatGPT</button>
+      </div>
+
+      <!-- Analysis output -->
+      <div class="section" id="analysisSection" style="margin-top:20px">
+        <div class="section-title">
+          Analysis <span id="analysisModelTag" class="badge-optional"></span>
+        </div>
+        <div id="analysisOutput"></div>
+        <div class="analysis-meta">
+          <span class="model-tag" id="analysisMeta"></span>
+          <button class="btn btn-ghost" id="copyAnalysisBtn" style="padding:6px 14px;font-size:9px;display:none">
+            📋 Copy
+          </button>
+        </div>
       </div>
 
     </div>
