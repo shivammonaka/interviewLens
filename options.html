@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>VoiceSnap — Setup</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#0a0a0a; --surface:#111; --border:#222; --accent:#e8ff00; --accent2:#ff3c3c; --text:#f0f0f0; --muted:#555; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:var(--bg); color:var(--text); font-family:'Space Mono',monospace; min-height:100vh; display:flex; align-items:center; justify-content:center; }
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:48px; max-width:480px; width:100%; text-align:center; }
+    .logo { font-family:'Bebas Neue',sans-serif; font-size:42px; letter-spacing:4px; color:var(--accent); text-shadow:0 0 30px rgba(232,255,0,.4); margin-bottom:8px; }
+    .subtitle { font-size:10px; letter-spacing:3px; color:var(--muted); text-transform:uppercase; margin-bottom:40px; }
+    .mic-icon { font-size:64px; margin-bottom:24px; }
+    .title { font-size:14px; letter-spacing:2px; text-transform:uppercase; margin-bottom:12px; }
+    .desc { font-size:11px; color:var(--muted); line-height:1.8; margin-bottom:32px; letter-spacing:1px; }
+    .btn { font-family:'Space Mono',monospace; font-size:12px; letter-spacing:3px; text-transform:uppercase; background:var(--accent); color:#000; border:none; padding:14px 32px; border-radius:4px; cursor:pointer; transition:all .2s; width:100%; }
+    .btn:hover { background:#fff; }
+    .btn:disabled { background:#1a3a1a; color:#4caf50; border:2px solid #4caf50; cursor:not-allowed; font-size:14px; }
+    .status { margin-top:24px; font-size:11px; letter-spacing:2px; text-transform:uppercase; padding:12px; border-radius:4px; display:none; }
+    .status.success { display:block; background:rgba(76,175,80,.15); border:1px solid #4caf50; color:#4caf50; font-size:13px; }
+    .status.error { display:block; background:rgba(255,60,60,.1); border:1px solid var(--accent2); color:var(--accent2); }
+    .close-hint { margin-top:20px; font-size:12px; color:#4caf50; letter-spacing:2px; display:none; text-transform:uppercase; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">VoiceSnap</div>
+    <div class="subtitle">Audio Recorder Setup</div>
+    <div class="mic-icon">🎙️</div>
+    <div class="title">Microphone Access Required</div>
+    <div class="desc">
+      VoiceSnap needs access to your microphone to record audio.<br><br>
+      Click the button below and then click <strong style="color:var(--text)">Allow</strong> when Chrome asks.
+    </div>
+    <button class="btn" id="allowBtn">Allow Microphone Access</button>
+    <div class="status" id="status"></div>
+    <div class="close-hint" id="closeHint">You can close this tab and start using the extension.</div>
+  </div>
+  <script src="options.js"></script>
+</body>
+</html>

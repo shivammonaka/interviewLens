@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>INTERVIEWLENS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:#0a0a0a; --surface:#111; --border:#222;
+      --accent:#e8ff00; --accent2:#ff3c3c; --pause:#ff9500;
+      --green:#4caf50; --text:#f0f0f0; --muted:#555;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { width:340px; background:var(--bg); color:var(--text); font-family:'Space Mono',monospace; overflow:hidden; position:relative; }
+    body::before { content:''; position:absolute; inset:0; pointer-events:none; z-index:0; background-image:linear-gradient(rgba(232,255,0,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(232,255,0,.03) 1px,transparent 1px); background-size:20px 20px; }
+    .container { position:relative; z-index:1; padding:16px; }
+
+    /* Header */
+    .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+    .logo { font-family:'Bebas Neue',sans-serif; font-size:26px; letter-spacing:3px; color:var(--accent); text-shadow:0 0 20px rgba(232,255,0,.4); }
+    .status-dot { width:8px; height:8px; border-radius:50%; background:var(--muted); transition:all .3s; }
+    .status-dot.active { background:var(--accent2); box-shadow:0 0 10px rgba(255,60,60,.8); animation:pulseDot 1s infinite; }
+    .status-dot.paused { background:var(--pause); animation:none; }
+    @keyframes pulseDot { 0%,100%{transform:scale(1)} 50%{transform:scale(1.4);opacity:.7} }
+
+    /* Tabs */
+    .tabs { display:flex; border:1px solid var(--border); border-radius:4px; margin-bottom:16px; overflow:hidden; }
+    .tab { flex:1; padding:8px; font-family:'Space Mono',monospace; font-size:9px; letter-spacing:2px; text-transform:uppercase; background:none; border:none; color:var(--muted); cursor:pointer; transition:all .2s; }
+    .tab.active { background:var(--accent); color:#000; }
+    .tab:not(.active):hover { background:var(--surface); color:var(--text); }
+
+    /* Panels */
+    .panel { display:none; }
+    .panel.active { display:block; }
+
+    /* ── RECORD PANEL ── */
+    .timer-section { text-align:center; margin-bottom:14px; }
+    .timer { font-family:'Bebas Neue',sans-serif; font-size:58px; letter-spacing:4px; line-height:1; color:var(--text); transition:color .3s; }
+    .timer.recording { color:var(--accent2); }
+    .timer.paused { color:var(--pause); }
+    .timer-label { font-size:10px; letter-spacing:3px; color:var(--muted); text-transform:uppercase; margin-top:4px; }
+
+    .waveform-container { background:var(--surface); border:1px solid var(--border); border-radius:4px; height:60px; margin-bottom:14px; position:relative; overflow:hidden; }
+    .waveform-container::before { content:'AUDIO LEVEL'; position:absolute; top:5px; left:8px; font-size:9px; letter-spacing:2px; color:var(--muted); }
+    canvas#waveCanvas { width:100%; height:100%; display:block; }
+    .idle-line { position:absolute; top:50%; left:0; right:0; height:1px; background:var(--border); }
+
+    .btn-row { display:flex; align-items:center; justify-content:center; gap:16px; margin-bottom:8px; }
+    .record-btn { width:68px; height:68px; border-radius:50%; border:3px solid var(--accent); background:transparent; cursor:pointer; transition:all .2s; display:flex; align-items:center; justify-content:center; }
+    .record-btn:hover { background:rgba(232,255,0,.07); box-shadow:0 0 30px rgba(232,255,0,.25); transform:scale(1.05); }
+    .record-btn:active { transform:scale(.96); }
+    .record-btn.recording { border-color:var(--accent2); animation:ringPulse 1.5s infinite; }
+    .record-btn.paused { border-color:var(--pause); animation:none; }
+    @keyframes ringPulse { 0%,100%{box-shadow:0 0 0 4px rgba(255,60,60,.15),0 0 25px rgba(255,60,60,.25)} 50%{box-shadow:0 0 0 10px rgba(255,60,60,.05),0 0 40px rgba(255,60,60,.4)} }
+    .btn-inner { width:28px; height:28px; border-radius:50%; background:var(--accent); transition:all .25s; }
+    .record-btn.recording .btn-inner { border-radius:6px; background:var(--accent2); width:24px; height:24px; }
+    .record-btn.paused .btn-inner { border-radius:50%; background:var(--pause); }
+
+    .pause-btn { width:44px; height:44px; border-radius:50%; border:2px solid var(--border); background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .2s; opacity:0; pointer-events:none; }
+    .pause-btn.visible { opacity:1; pointer-events:all; }
+    .pause-btn:hover { border-color:var(--pause); }
+    .pause-btn svg { width:15px; height:15px; fill:var(--muted); }
+    .pause-btn:hover svg { fill:var(--pause); }
+
+    .btn-labels { display:flex; align-items:center; justify-content:center; gap:16px; }
+    .btn-label-item { font-size:9px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; text-align:center; }
+    .btn-label-item.pause-label { width:44px; opacity:0; }
+    .btn-label-item.pause-label.visible { opacity:1; }
+
+    /* ── REVIEW PANEL ── */
+    .review-label { font-size:9px; letter-spacing:3px; color:var(--accent); text-transform:uppercase; margin-bottom:12px; }
+    .review-duration { font-family:'Bebas Neue',sans-serif; font-size:48px; letter-spacing:3px; color:var(--text); text-align:center; margin-bottom:14px; }
+
+    /* Mini player */
+    .mini-player { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:10px 12px; margin-bottom:14px; }
+    .mp-controls { display:flex; align-items:center; gap:8px; }
+    .mp-btn { width:32px; height:32px; border-radius:50%; border:2px solid var(--border); background:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .2s; flex-shrink:0; }
+    .mp-btn:hover { border-color:var(--accent); background:rgba(232,255,0,.08); }
+    .mp-btn svg { width:14px; height:14px; fill:var(--muted); }
+    .mp-btn:hover svg, .mp-btn.playing svg { fill:var(--accent); }
+    .mp-progress { flex:1; height:4px; background:var(--border); border-radius:2px; cursor:pointer; }
+    .mp-fill { height:100%; background:var(--accent); border-radius:2px; width:0%; }
+    .mp-time { font-size:9px; color:var(--muted); letter-spacing:1px; white-space:nowrap; }
+
+    /* Name editor */
+    .name-editor { margin-bottom:14px; }
+    .name-label { font-size:9px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-bottom:6px; }
+    .name-input { width:100%; background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:8px 10px; color:var(--text); font-family:'Space Mono',monospace; font-size:11px; outline:none; transition:border-color .2s; }
+    .name-input:focus { border-color:var(--accent); }
+
+    /* Review actions */
+    .review-actions { display:flex; gap:8px; }
+    .action-btn { flex:1; padding:10px; font-family:'Space Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; border-radius:4px; cursor:pointer; transition:all .2s; border:1px solid var(--border); background:none; color:var(--muted); }
+    .action-btn.save { background:var(--green); color:#000; border-color:var(--green); font-weight:700; }
+    .action-btn.save:hover { background:#66bb6a; }
+    .action-btn.discard:hover { border-color:var(--accent2); color:var(--accent2); }
+
+    /* ── PLAYER PANEL ── */
+    .now-playing { background:var(--surface); border:1px solid var(--accent); border-radius:4px; padding:10px 12px; margin-bottom:10px; display:none; }
+    .now-playing.active { display:block; }
+    .np-name { font-size:10px; color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:8px; letter-spacing:1px; }
+    .np-controls { display:flex; align-items:center; gap:8px; }
+    .np-btn { width:28px; height:28px; border-radius:3px; border:1px solid var(--border); background:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .2s; }
+    .np-btn:hover { border-color:var(--accent); background:rgba(232,255,0,.08); }
+    .np-btn svg { width:13px; height:13px; fill:var(--muted); }
+    .np-btn:hover svg { fill:var(--accent); }
+    .np-progress { flex:1; height:3px; background:var(--border); border-radius:2px; cursor:pointer; }
+    .np-fill { height:100%; background:var(--accent); border-radius:2px; width:0%; }
+    .np-time { font-size:9px; color:var(--muted); letter-spacing:1px; white-space:nowrap; }
+
+    .player-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+    .player-title { font-size:10px; letter-spacing:3px; color:var(--muted); text-transform:uppercase; }
+    .clear-btn { font-family:'Space Mono',monospace; font-size:9px; letter-spacing:2px; color:var(--muted); background:none; border:1px solid var(--border); border-radius:2px; padding:2px 6px; cursor:pointer; text-transform:uppercase; transition:all .2s; }
+    .clear-btn:hover { color:var(--accent2); border-color:var(--accent2); }
+
+    .recordings-list { max-height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; }
+    .recordings-list::-webkit-scrollbar { width:3px; }
+    .recordings-list::-webkit-scrollbar-thumb { background:var(--border); }
+    .recording-item { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:8px 10px; display:flex; align-items:center; gap:8px; transition:border-color .2s; cursor:pointer; }
+    .recording-item:hover, .recording-item.active { border-color:var(--accent); }
+    .rec-info { flex:1; min-width:0; }
+    .rec-name { font-size:10px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .rec-meta { font-size:9px; color:var(--muted); margin-top:2px; letter-spacing:1px; }
+    .rec-actions { display:flex; gap:4px; }
+    .icon-btn { width:26px; height:26px; border-radius:3px; border:1px solid var(--border); background:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .2s; }
+    .icon-btn:hover { border-color:var(--accent); background:rgba(232,255,0,.08); }
+    .icon-btn svg { width:12px; height:12px; fill:var(--muted); }
+    .icon-btn:hover svg, .icon-btn.playing svg { fill:var(--accent); }
+
+    .empty-state { text-align:center; padding:24px; color:var(--muted); font-size:10px; letter-spacing:2px; text-transform:uppercase; border:1px dashed var(--border); border-radius:4px; }
+
+    .notif { position:fixed; bottom:10px; left:50%; transform:translateX(-50%) translateY(40px); background:var(--accent); color:#000; font-size:10px; letter-spacing:2px; text-transform:uppercase; padding:6px 14px; border-radius:2px; transition:transform .3s; white-space:nowrap; z-index:100; }
+    .notif.show { transform:translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="logo">INTERVIEWLENS</div>
+    <div class="status-dot" id="statusDot"></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" id="tabRecord">⏺ Record</button>
+    <button class="tab" id="tabPlayer">▶ Library</button>
+  </div>
+
+  <!-- RECORD PANEL -->
+  <div class="panel active" id="panelRecord">
+    <div class="timer-section">
+      <div class="timer" id="timer">00:00</div>
+      <div class="timer-label" id="timerLabel">Ready to record</div>
+    </div>
+    <div class="waveform-container">
+      <div class="idle-line" id="idleLine"></div>
+      <canvas id="waveCanvas"></canvas>
+    </div>
+    <div class="btn-row">
+      <div style="width:44px"></div>
+      <button class="record-btn" id="recordBtn"><div class="btn-inner"></div></button>
+      <button class="pause-btn" id="pauseBtn">
+        <svg id="pauseIcon" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
+    </div>
+    <div class="btn-labels">
+      <div class="btn-label-item" style="width:44px"></div>
+      <div class="btn-label-item" id="recordLabel">Click to record</div>
+      <div class="btn-label-item pause-label" id="pauseLabel">Pause</div>
+    </div>
+  </div>
+
+  <!-- REVIEW PANEL -->
+  <div class="panel" id="panelReview">
+    <div class="review-label">New Recording</div>
+    <div class="review-duration" id="reviewDuration">00:00</div>
+
+    <div class="mini-player">
+      <div class="mp-controls">
+        <button class="mp-btn" id="mpBtn">
+          <svg id="mpIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <div class="mp-progress" id="mpProgress"><div class="mp-fill" id="mpFill"></div></div>
+        <span class="mp-time" id="mpTime">0:00</span>
+      </div>
+    </div>
+
+    <div class="name-editor">
+      <div class="name-label">Recording name</div>
+      <input class="name-input" id="nameInput" type="text" placeholder="Enter name…"/>
+    </div>
+
+    <div class="review-actions">
+      <button class="action-btn discard" id="discardBtn">✕ Discard</button>
+      <button class="action-btn save" id="saveBtn">↓ Save to disk</button>
+    </div>
+  </div>
+
+  <!-- PLAYER PANEL -->
+  <div class="panel" id="panelPlayer">
+    <div class="now-playing" id="nowPlaying">
+      <div class="np-name" id="npName">—</div>
+      <div class="np-controls">
+        <button class="np-btn" id="npStop"><svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg></button>
+        <div class="np-progress" id="npProgress"><div class="np-fill" id="npFill"></div></div>
+        <span class="np-time" id="npTime">0:00</span>
+      </div>
+    </div>
+    <div class="player-header">
+      <span class="player-title">Library</span>
+      <button class="clear-btn" id="clearBtn">Clear all</button>
+    </div>
+    <div class="recordings-list" id="recordingsList">
+      <div class="empty-state" id="emptyState">No recordings yet</div>
+    </div>
+  </div>
+</div>
+<div class="notif" id="notif"></div>
+<script src="popup.js"></script>
+</body>
+</html>

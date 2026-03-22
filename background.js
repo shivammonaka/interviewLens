@@ -1,0 +1,229 @@
+// background.js — Service Worker
+// Stores latest waveform in memory so popup can poll it via GET_STATE.
+// No two-step blob fetch — offscreen sends dataUrl directly in RECORDING_DONE.
+
+let state = {
+  isRecording:   false,
+  isPaused:      false,
+  startTime:     null,
+  pausedElapsed: 0,
+  recordings:    [],
+  waveform:      new Array(128).fill(128),
+  pending:       null,   // recording awaiting user review
+};
+
+let storageLoaded = false;
+
+// ── Storage ───────────────────────────────────────────────────────────────
+async function loadStorage() {
+  if (storageLoaded) return;
+  storageLoaded = true;
+  try {
+    const r = await chrome.storage.local.get('recordings');
+    if (Array.isArray(r.recordings)) state.recordings = r.recordings;
+  } catch(e) { console.warn('[bg] storage load failed', e); }
+}
+
+async function saveStorage() {
+  try { await chrome.storage.local.set({ recordings: state.recordings }); }
+  catch(e) { console.warn('[bg] storage save failed', e); }
+}
+
+// ── Keep SW alive ─────────────────────────────────────────────────────────
+chrome.alarms.onAlarm.addListener(alarm => {
+  if (alarm.name === 'keepAlive' && state.isRecording) {
+    chrome.alarms.create('keepAlive', { delayInMinutes: 1/3 });
+  }
+});
+function startKeepAlive() { chrome.alarms.create('keepAlive', { delayInMinutes: 1/3 }); }
+function stopKeepAlive()  { chrome.alarms.clear('keepAlive'); }
+
+// ── Offscreen ─────────────────────────────────────────────────────────────
+async function ensureOffscreen() {
+  let has = false;
+  try { has = await chrome.offscreen.hasDocument(); } catch(_) {}
+  if (has) return;
+  await chrome.offscreen.createDocument({
+    url: 'offscreen.html',
+    reasons: ['USER_MEDIA'],
+    justification: 'Microphone recording that must continue in background'
+  });
+}
+async function closeOffscreen() {
+  try { await chrome.offscreen.closeDocument(); } catch(_) {}
+}
+
+// Send message to offscreen and get response
+function msgOffscreen(payload) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(payload, r => {
+      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+      else resolve(r);
+    });
+  });
+}
+
+// ── Elapsed time helper ───────────────────────────────────────────────────
+function calcElapsed() {
+  let e = state.pausedElapsed;
+  if (state.isRecording && !state.isPaused && state.startTime) {
+    e += Math.floor((Date.now() - state.startTime) / 1000);
+  }
+  return e;
+}
+
+function fmt(s) {
+  return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+}
+
+// ── Message hub ───────────────────────────────────────────────────────────
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  (async () => {
+    await loadStorage();
+
+    switch (msg.type) {
+
+      // ── Popup polls this ──────────────────────────────────────────────
+      case 'GET_STATE':
+        sendResponse({
+          isRecording:  state.isRecording,
+          isPaused:     state.isPaused,
+          elapsed:      calcElapsed(),
+          recordings:   state.recordings,
+          waveform:     state.waveform,
+          pending:      state.pending,
+        });
+        break;
+
+      // ── Start ─────────────────────────────────────────────────────────
+      case 'START_RECORDING':
+        if (state.isRecording) { sendResponse({ ok: false, reason: 'already' }); break; }
+        try {
+          await ensureOffscreen();
+          await new Promise(r => setTimeout(r, 300)); // let offscreen page boot
+          await msgOffscreen({ type: 'OFFSCREEN_START' });
+          state.isRecording   = true;
+          state.isPaused      = false;
+          state.startTime     = Date.now();
+          state.pausedElapsed = 0;
+          state.waveform      = new Array(128).fill(128);
+          startKeepAlive();
+          sendResponse({ ok: true });
+        } catch(e) {
+          console.error('[bg] start failed:', e.message);
+          await closeOffscreen();
+          sendResponse({ ok: false, error: e.message });
+        }
+        break;
+
+      // ── Pause ─────────────────────────────────────────────────────────
+      case 'PAUSE_RECORDING':
+        if (!state.isRecording || state.isPaused) { sendResponse({ ok: false }); break; }
+        chrome.runtime.sendMessage({ type: 'OFFSCREEN_PAUSE' });
+        state.pausedElapsed += Math.floor((Date.now() - state.startTime) / 1000);
+        state.startTime = null;
+        state.isPaused  = true;
+        state.waveform  = new Array(128).fill(128);
+        sendResponse({ ok: true });
+        break;
+
+      // ── Resume ────────────────────────────────────────────────────────
+      case 'RESUME_RECORDING':
+        if (!state.isRecording || !state.isPaused) { sendResponse({ ok: false }); break; }
+        chrome.runtime.sendMessage({ type: 'OFFSCREEN_RESUME' });
+        state.startTime = Date.now();
+        state.isPaused  = false;
+        sendResponse({ ok: true });
+        break;
+
+      // ── Stop ──────────────────────────────────────────────────────────
+      case 'STOP_RECORDING':
+        if (!state.isRecording) { sendResponse({ ok: false }); break; }
+        state._durationAtStop = calcElapsed(); // capture before async gap
+        // Mark stopped IMMEDIATELY so popup timer stops on next poll
+        state.isRecording = false;
+        state.isPaused    = false;
+        state.startTime   = null;
+        state.waveform    = new Array(128).fill(128);
+        chrome.runtime.sendMessage({ type: 'OFFSCREEN_STOP' });
+        stopKeepAlive();
+        sendResponse({ ok: true });
+        break;
+
+      // ── Offscreen sends live waveform frames ──────────────────────────
+      case 'AUDIO_LEVEL':
+        if (msg.waveform) state.waveform = msg.waveform;
+        // No sendResponse needed — fire and forget
+        break;
+
+      // ── Offscreen finished — store as pending for user review ────────────
+      case 'RECORDING_DONE': {
+        const duration = fmt(state._durationAtStop || 0);
+        const now      = new Date();
+        const name     = `Recording_${now.toISOString().slice(0,10)}_${now
+          .toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'})
+          .replace(/:/g,'-')}`;
+
+        if (msg.dataUrl) {
+          state.pending = { name, dataUrl: msg.dataUrl, duration, timestamp: Date.now() };
+        }
+
+        state.isRecording    = false;
+        state.isPaused       = false;
+        state.startTime      = null;
+        state.pausedElapsed  = 0;
+        state._durationAtStop= 0;
+        state.waveform       = new Array(128).fill(128);
+
+        await closeOffscreen();
+        sendResponse({ ok: true });
+        break;
+      }
+
+      case 'SAVE_RECORDING': {
+        if (!state.pending) { sendResponse({ ok: false }); break; }
+        const rec = { ...state.pending, name: msg.name || state.pending.name };
+        state.recordings.unshift(rec);
+        state.pending = null;
+        await saveStorage();
+        chrome.downloads.download({
+          url: rec.dataUrl,
+          filename: `AudioRecordings/${rec.name}.webm`,
+          saveAs: false, conflictAction: 'uniquify'
+        });
+        sendResponse({ ok: true, recordings: state.recordings });
+        break;
+      }
+
+      case 'DISCARD_RECORDING':
+        state.pending = null;
+        sendResponse({ ok: true });
+        break;
+
+      case 'DOWNLOAD_RECORDING': {
+        const rec = state.recordings[msg.index];
+        if (!rec) { sendResponse({ ok: false }); break; }
+        chrome.downloads.download({ url: rec.dataUrl, filename: `AudioRecordings/${rec.name}.webm`, saveAs: false, conflictAction: 'uniquify' });
+        sendResponse({ ok: true });
+        break;
+      }
+
+      case 'DELETE_RECORDING':
+        state.recordings.splice(msg.index, 1);
+        await saveStorage();
+        sendResponse({ ok: true });
+        break;
+
+      case 'CLEAR_RECORDINGS':
+        state.recordings = [];
+        await saveStorage();
+        sendResponse({ ok: true });
+        break;
+
+      default:
+        // Don't sendResponse for unknown — avoids interfering with offscreen messages
+        break;
+    }
+  })();
+  return true;
+});
