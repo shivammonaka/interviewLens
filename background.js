@@ -53,14 +53,12 @@ async function closeOffscreen() {
   try { await chrome.offscreen.closeDocument(); } catch(_) {}
 }
 
-// Send message to offscreen and get response
+// Fire-and-forget to offscreen — we never wait for a response back because
+// Chrome MV3 closes the message channel before the async sendResponse arrives,
+// causing "message channel closed before response was received" errors.
+// Offscreen signals completion via its own sendMessage (RECORDING_DONE, AUDIO_LEVEL).
 function msgOffscreen(payload) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(payload, r => {
-      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
-      else resolve(r);
-    });
-  });
+  chrome.runtime.sendMessage(payload).catch(() => {});
 }
 
 // ── Elapsed time helper ───────────────────────────────────────────────────
@@ -129,7 +127,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         try {
           await ensureOffscreen();
           await new Promise(r => setTimeout(r, 300)); // let offscreen page boot
-          await msgOffscreen({ type: 'OFFSCREEN_START' });
+          msgOffscreen({ type: 'OFFSCREEN_START' });
           state.isRecording   = true;
           state.isPaused      = false;
           state.startTime     = Date.now();

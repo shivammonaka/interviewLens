@@ -45,7 +45,14 @@ async function startRecording() {
   const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg']
     .find(m => MediaRecorder.isTypeSupported(m)) || '';
 
-  mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+  // 32kbps is sufficient for speech — Groq/Whisper resamples to 16kHz mono
+  // internally anyway, so anything above ~32kbps is wasted storage.
+  // This brings a 2hr interview from ~115MB down to ~28MB, safely under
+  // Groq's 25MB limit for most recordings.
+  mediaRecorder = new MediaRecorder(stream, {
+    ...(mimeType ? { mimeType } : {}),
+    audioBitsPerSecond: 32000,
+  });
   mediaRecorder.ondataavailable = e => { if (e.data?.size > 0) audioChunks.push(e.data); };
 
   mediaRecorder.onstop = async () => {
