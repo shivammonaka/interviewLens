@@ -76,6 +76,34 @@ function fmt(s) {
   return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 }
 
+// ── Groq Transcription ────────────────────────────────────────────────────
+async function transcribeWithGroq(dataUrl, apiKey) {
+  // Convert dataUrl to Blob
+  const res     = await fetch(dataUrl);
+  const blob    = await res.blob();
+
+  // Groq Whisper accepts webm — build multipart form
+  const form = new FormData();
+  form.append('file', blob, 'audio.webm');
+  form.append('model', 'whisper-large-v3-turbo');
+  form.append('response_format', 'json');
+  form.append('language', 'en');
+
+  const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}` },
+    body: form,
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: { message: response.statusText } }));
+    throw new Error(err?.error?.message || `Groq API error ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.text || '';
+}
+
 // ── Message hub ───────────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   (async () => {
@@ -156,7 +184,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         // No sendResponse needed — fire and forget
         break;
 
-      // ── Offscreen finished — store as pending for user review ────────────
+      // ── Offscreen finished — store as pending for user review ─────────
       case 'RECORDING_DONE': {
         const duration = fmt(state._durationAtStop || 0);
         const now      = new Date();
@@ -220,8 +248,56 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({ ok: true });
         break;
 
+      // ── Groq Transcription ─────────────────────────────────────────────
+      case 'TRANSCRIBE': {
+        try {
+          const { apiKey } = await chrome.storage.local.get('apiKey');
+          if (!apiKey) {
+            sendResponse({ ok: false, error: 'No API key set. Open Settings to add your Groq API key.' });
+            break;
+          }
+
+          // Get dataUrl from pending or saved recordings
+          let dataUrl = msg.dataUrl;
+          if (!dataUrl && msg.index !== undefined) {
+            dataUrl = state.recordings[msg.index]?.dataUrl;
+          }
+          if (!dataUrl) {
+            sendResponse({ ok: false, error: 'No audio data found.' });
+            break;
+          }
+
+          const text = await transcribeWithGroq(dataUrl, apiKey);
+
+          // If saving to a recording, persist it
+          if (msg.index !== undefined && state.recordings[msg.index]) {
+            state.recordings[msg.index].transcript = text;
+            await saveStorage();
+          }
+          if (msg.isPending && state.pending) {
+            state.pending.transcript = text;
+          }
+
+          sendResponse({ ok: true, text });
+        } catch(e) {
+          sendResponse({ ok: false, error: e.message });
+        }
+        break;
+      }
+
+      // ── Save transcript to a saved recording ───────────────────────────
+      case 'SAVE_TRANSCRIPT': {
+        if (msg.index !== undefined && state.recordings[msg.index]) {
+          state.recordings[msg.index].transcript = msg.text;
+          await saveStorage();
+          sendResponse({ ok: true });
+        } else {
+          sendResponse({ ok: false });
+        }
+        break;
+      }
+
       default:
-        // Don't sendResponse for unknown — avoids interfering with offscreen messages
         break;
     }
   })();

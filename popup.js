@@ -20,6 +20,7 @@ const listEl       = document.getElementById('recordingsList');
 const emptyState   = document.getElementById('emptyState');
 const clearBtn     = document.getElementById('clearBtn');
 const notifEl      = document.getElementById('notif');
+const settingsBtn  = document.getElementById('settingsBtn');
 // Review panel
 const reviewDur    = document.getElementById('reviewDuration');
 const mpBtn        = document.getElementById('mpBtn');
@@ -30,6 +31,7 @@ const mpTime       = document.getElementById('mpTime');
 const nameInput    = document.getElementById('nameInput');
 const saveBtn      = document.getElementById('saveBtn');
 const discardBtn   = document.getElementById('discardBtn');
+const reviewTranscribeBtn = document.getElementById('reviewTranscribeBtn');
 // Library player
 const nowPlaying   = document.getElementById('nowPlaying');
 const npName       = document.getElementById('npName');
@@ -37,7 +39,17 @@ const npStop       = document.getElementById('npStop');
 const npProgress   = document.getElementById('npProgress');
 const npFill       = document.getElementById('npFill');
 const npTime       = document.getElementById('npTime');
-const ctx          = canvas.getContext('2d');
+// Transcript modal
+const transcriptModal = document.getElementById('transcriptModal');
+const modalClose   = document.getElementById('modalClose');
+const modalRecName = document.getElementById('modalRecName');
+const modalBody    = document.getElementById('modalBody');
+const transcriptText = document.getElementById('transcriptText');
+const modalActions = document.getElementById('modalActions');
+const copyBtn      = document.getElementById('copyBtn');
+const retranscribeBtn = document.getElementById('retranscribeBtn');
+
+const ctx = canvas.getContext('2d');
 
 // ── State ─────────────────────────────────────────────────────────────────
 let uiState      = 'idle';
@@ -47,9 +59,11 @@ let pollInterval = null;
 let animFrameId  = null;
 let liveWaveform = new Array(128).fill(128);
 let currentRecs  = [];
-let libAudio     = null;   // library playback
+let libAudio     = null;
 let libIndex     = -1;
-let reviewAudio  = null;   // review panel playback
+let reviewAudio  = null;
+// Modal state
+let modalRecIndex = -1;   // -1 = pending review recording
 
 // ── Canvas ────────────────────────────────────────────────────────────────
 function resizeCanvas() {
@@ -60,6 +74,9 @@ function resizeCanvas() {
 }
 resizeCanvas();
 
+// ── Settings ──────────────────────────────────────────────────────────────
+settingsBtn.addEventListener('click', () => chrome.runtime.openOptionsPage());
+
 // ── Tabs ──────────────────────────────────────────────────────────────────
 function switchTab(tab) {
   [panelRecord, panelReview, panelPlayer].forEach(p => p.classList.remove('active'));
@@ -69,7 +86,7 @@ function switchTab(tab) {
   if (tab === 'player')  { panelPlayer.classList.add('active');  tabPlayer.classList.add('active'); }
 }
 tabRecord.addEventListener('click', () => {
-  if (pendingRec) switchTab('review'); // stay on review if pending
+  if (pendingRec) switchTab('review');
   else switchTab('record');
 });
 tabPlayer.addEventListener('click', () => switchTab('player'));
@@ -124,22 +141,16 @@ function startPolling() {
     if (s.waveform) liveWaveform = s.waveform;
     if (s.isRecording && !s.isPaused) { elapsed = s.elapsed; timerEl.textContent = fmt(elapsed); }
 
-    // Step 1 — wait for recording to stop
     if (uiState !== 'idle' && !s.isRecording) {
       setUI('idle');
       resetTimer();
       currentRecs = s.recordings || [];
-      // Don't stop polling yet — keep waiting for pending to arrive
     }
 
-    // Step 2 — once stopped, wait for pending blob to be ready
     if (uiState === 'idle' && s.pending && !pendingRec) {
       stopPolling();
       showReview(s.pending);
     }
-
-    // Step 3 — safety timeout: if stopped but no pending after 5s, go to player
-    // (handled by the poll counter below)
   }, 50);
 }
 function stopPolling() { if (pollInterval) { clearInterval(pollInterval); pollInterval = null; } }
@@ -156,6 +167,10 @@ function showReview(rec) {
   mpTime.textContent = '0:00';
   mpIcon.innerHTML = PLAY_PATH;
   mpBtn.classList.remove('playing');
+  reviewTranscribeBtn.classList.remove('loading');
+  reviewTranscribeBtn.querySelector('span').textContent = rec.transcript
+    ? '⚡ Re-transcribe with Groq'
+    : '⚡ Transcribe with Groq';
   if (reviewAudio) { reviewAudio.pause(); reviewAudio = null; }
   switchTab('review');
 }
@@ -192,12 +207,45 @@ mpProgress.addEventListener('click', e => {
   reviewAudio.currentTime = (e.offsetX / mpProgress.offsetWidth) * reviewAudio.duration;
 });
 
+// Transcribe button in review panel
+reviewTranscribeBtn.addEventListener('click', async () => {
+  if (!pendingRec?.dataUrl) return;
+  reviewTranscribeBtn.disabled = true;
+  reviewTranscribeBtn.classList.add('loading');
+  reviewTranscribeBtn.querySelector('span').textContent = 'Transcribing…';
+
+  const res = await bgMsg({ type: 'TRANSCRIBE', dataUrl: pendingRec.dataUrl, isPending: true });
+
+  reviewTranscribeBtn.disabled = false;
+  reviewTranscribeBtn.classList.remove('loading');
+
+  if (res.ok) {
+    pendingRec.transcript = res.text;
+    reviewTranscribeBtn.querySelector('span').textContent = '✓ Transcribed — view';
+    // Open modal immediately
+    openTranscriptModal(-1, pendingRec.name, res.text, false);
+  } else {
+    reviewTranscribeBtn.querySelector('span').textContent = '⚡ Transcribe with Groq';
+    if (res.error?.includes('No API key')) {
+      showNotif('Add Groq API key in Settings', '#ff9500');
+      chrome.runtime.openOptionsPage();
+    } else {
+      showNotif(res.error || 'Transcription failed', '#ff3c3c');
+    }
+  }
+});
+
 // Save
 saveBtn.addEventListener('click', async () => {
   const name = nameInput.value.trim() || pendingRec.name;
   const res = await bgMsg({ type: 'SAVE_RECORDING', name });
   if (res.ok) {
     currentRecs = res.recordings || [];
+    // If we had a transcript on pending, save it to the now-saved recording
+    if (pendingRec?.transcript && currentRecs.length > 0) {
+      await bgMsg({ type: 'SAVE_TRANSCRIPT', index: 0, text: pendingRec.transcript });
+      currentRecs[0].transcript = pendingRec.transcript;
+    }
     if (reviewAudio) { reviewAudio.pause(); reviewAudio = null; }
     pendingRec = null;
     renderList(currentRecs);
@@ -215,11 +263,75 @@ discardBtn.addEventListener('click', async () => {
   showNotif('Discarded', '#555');
 });
 
+// ── Transcript Modal ───────────────────────────────────────────────────────
+function openTranscriptModal(index, name, text, showRetranscribe = true) {
+  modalRecIndex = index;
+  modalRecName.textContent = name;
+  transcriptText.textContent = text || '';
+  modalBody.innerHTML = '';
+  modalBody.appendChild(transcriptText);
+  modalActions.style.display = 'flex';
+  retranscribeBtn.style.display = showRetranscribe ? 'block' : 'none';
+  copyBtn.textContent = 'Copy text';
+  copyBtn.classList.remove('copied');
+  transcriptModal.classList.add('open');
+}
+
+function showModalLoading(name) {
+  modalRecName.textContent = name;
+  modalBody.innerHTML = `<div class="modal-loading"><div class="spin"></div><span>Transcribing audio…</span></div>`;
+  modalActions.style.display = 'none';
+  transcriptModal.classList.add('open');
+}
+
+function showModalError(msg) {
+  modalBody.innerHTML = `<div class="modal-error">${msg}</div>`;
+  modalActions.style.display = 'none';
+}
+
+modalClose.addEventListener('click', () => transcriptModal.classList.remove('open'));
+transcriptModal.addEventListener('click', e => {
+  if (e.target === transcriptModal) transcriptModal.classList.remove('open');
+});
+
+copyBtn.addEventListener('click', () => {
+  const text = transcriptText.textContent;
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    copyBtn.textContent = '✓ Copied!';
+    copyBtn.classList.add('copied');
+    setTimeout(() => { copyBtn.textContent = 'Copy text'; copyBtn.classList.remove('copied'); }, 2000);
+  });
+});
+
+retranscribeBtn.addEventListener('click', async () => {
+  if (modalRecIndex < 0) return;
+  const rec = currentRecs[modalRecIndex];
+  if (!rec) return;
+  showModalLoading(rec.name);
+  const res = await bgMsg({ type: 'TRANSCRIBE', index: modalRecIndex });
+  if (res.ok) {
+    currentRecs[modalRecIndex].transcript = res.text;
+    renderList(currentRecs);
+    openTranscriptModal(modalRecIndex, rec.name, res.text, true);
+  } else {
+    if (res.error?.includes('No API key')) {
+      showModalError('No Groq API key found.<br><a onclick="chrome.runtime.openOptionsPage()">Open Settings</a> to add one.');
+    } else {
+      showModalError(res.error || 'Transcription failed. Please try again.');
+    }
+  }
+});
+
 // ── Record UI state ───────────────────────────────────────────────────────
-const PAUSE_PATH  = `<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>`;
-const RESUME_PATH = `<path d="M8 5v14l11-7z"/>`;
-const PLAY_PATH   = `<path d="M8 5v14l11-7z"/>`;
+const PAUSE_PATH      = `<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>`;
+const RESUME_PATH     = `<path d="M8 5v14l11-7z"/>`;
+const PLAY_PATH       = `<path d="M8 5v14l11-7z"/>`;
 const PAUSE_PATH_ICON = `<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>`;
+
+// SVG icons for list buttons
+const TRANSCRIPT_SVG = `<svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM8 13h8v1.5H8V13zm0 3h5v1.5H8V16zm0-6h2v1.5H8V10z"/></svg>`;
+const SPIN_SVG       = `<svg viewBox="0 0 24 24"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg>`;
 
 function setUI(s) {
   uiState = s;
@@ -326,13 +438,23 @@ function renderList(recs) {
     <div class="recording-item ${libIndex===i?'active':''}" data-idx="${i}">
       <div class="rec-info">
         <div class="rec-name">${rec.name}</div>
-        <div class="rec-meta">${rec.duration}</div>
+        <div class="rec-meta">
+          ${rec.duration}
+          ${rec.transcript ? '<span class="transcript-badge">TXT</span>' : ''}
+        </div>
       </div>
       <div class="rec-actions">
-        <button class="icon-btn ${libIndex===i?'playing':''}" data-idx="${i}" data-action="play">
-          ${libIndex===i ? `<svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>` : `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`}
+        <button class="icon-btn ${libIndex===i?'playing':''}" data-idx="${i}" data-action="play" title="${libIndex===i?'Stop':'Play'}">
+          ${libIndex===i
+            ? `<svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>`
+            : `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`}
         </button>
-        <button class="icon-btn" data-idx="${i}" data-action="dl"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg></button>
+        <button class="icon-btn" data-idx="${i}" data-action="transcript" title="${rec.transcript?'View transcript':'Transcribe'}">
+          ${TRANSCRIPT_SVG}
+        </button>
+        <button class="icon-btn" data-idx="${i}" data-action="dl" title="Download">
+          <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+        </button>
       </div>
     </div>
   `).join('');
@@ -341,8 +463,14 @@ function renderList(recs) {
     btn.addEventListener('click', e => {
       e.stopPropagation();
       const i = parseInt(btn.dataset.idx);
-      if (btn.dataset.action === 'play') libIndex === i ? stopLib() : playLib(i);
-      else reDownload(i);
+      const action = btn.dataset.action;
+      if (action === 'play') {
+        libIndex === i ? stopLib() : playLib(i);
+      } else if (action === 'transcript') {
+        handleTranscriptBtn(i, btn);
+      } else if (action === 'dl') {
+        reDownload(i);
+      }
     });
   });
   listEl.querySelectorAll('.recording-item').forEach(row => {
@@ -351,6 +479,43 @@ function renderList(recs) {
       libIndex === i ? stopLib() : playLib(i);
     });
   });
+}
+
+async function handleTranscriptBtn(i, btn) {
+  const rec = currentRecs[i];
+  if (!rec) return;
+
+  // If transcript exists, just open modal
+  if (rec.transcript) {
+    openTranscriptModal(i, rec.name, rec.transcript, true);
+    return;
+  }
+
+  // Need to transcribe first — show loading in modal
+  showModalLoading(rec.name);
+  modalRecIndex = i;
+
+  // Spinning icon on the button
+  btn.classList.add('transcribing');
+  btn.innerHTML = SPIN_SVG;
+
+  const res = await bgMsg({ type: 'TRANSCRIBE', index: i });
+
+  // Reset button
+  btn.classList.remove('transcribing');
+  btn.innerHTML = TRANSCRIPT_SVG;
+
+  if (res.ok) {
+    currentRecs[i].transcript = res.text;
+    renderList(currentRecs);
+    openTranscriptModal(i, rec.name, res.text, true);
+  } else {
+    if (res.error?.includes('No API key')) {
+      showModalError('No Groq API key found.<br><a style="cursor:pointer;color:var(--accent)" onclick="chrome.runtime.openOptionsPage()">Open Settings to add one.</a>');
+    } else {
+      showModalError(res.error || 'Transcription failed. Please try again.');
+    }
+  }
 }
 
 async function reDownload(i) {
@@ -371,7 +536,6 @@ clearBtn.addEventListener('click', async () => {
   renderList(currentRecs);
 
   if (s.pending) {
-    // Was stopped while popup was closed — show review
     showReview(s.pending);
   } else if (s.isRecording && !s.isPaused) {
     setUI('recording'); startTimer(s.elapsed || 0); startPolling(); switchTab('record');

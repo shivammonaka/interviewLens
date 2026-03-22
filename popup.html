@@ -18,11 +18,14 @@
 
     /* Header */
     .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+    .header-left { display:flex; align-items:center; gap:10px; }
     .logo { font-family:'Bebas Neue',sans-serif; font-size:26px; letter-spacing:3px; color:var(--accent); text-shadow:0 0 20px rgba(232,255,0,.4); }
     .status-dot { width:8px; height:8px; border-radius:50%; background:var(--muted); transition:all .3s; }
     .status-dot.active { background:var(--accent2); box-shadow:0 0 10px rgba(255,60,60,.8); animation:pulseDot 1s infinite; }
     .status-dot.paused { background:var(--pause); animation:none; }
     @keyframes pulseDot { 0%,100%{transform:scale(1)} 50%{transform:scale(1.4);opacity:.7} }
+    .settings-btn { background:none; border:1px solid var(--border); border-radius:4px; width:28px; height:28px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .2s; color:var(--muted); font-size:14px; }
+    .settings-btn:hover { border-color:var(--accent); color:var(--accent); }
 
     /* Tabs */
     .tabs { display:flex; border:1px solid var(--border); border-radius:4px; margin-bottom:16px; overflow:hidden; }
@@ -89,6 +92,15 @@
     .name-input { width:100%; background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:8px 10px; color:var(--text); font-family:'Space Mono',monospace; font-size:11px; outline:none; transition:border-color .2s; }
     .name-input:focus { border-color:var(--accent); }
 
+    /* Transcription in review */
+    .transcribe-row { margin-bottom:14px; }
+    .transcribe-btn { width:100%; font-family:'Space Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; background:none; border:1px solid var(--border); border-radius:4px; padding:9px; color:var(--muted); cursor:pointer; transition:all .2s; display:flex; align-items:center; justify-content:center; gap:6px; }
+    .transcribe-btn:hover { border-color:var(--accent); color:var(--accent); background:rgba(232,255,0,.05); }
+    .transcribe-btn:disabled { opacity:.5; cursor:not-allowed; }
+    .transcribe-btn .spin { display:none; width:12px; height:12px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
+    .transcribe-btn.loading .spin { display:block; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
     /* Review actions */
     .review-actions { display:flex; gap:8px; }
     .action-btn { flex:1; padding:10px; font-family:'Space Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; border-radius:4px; cursor:pointer; transition:all .2s; border:1px solid var(--border); background:none; color:var(--muted); }
@@ -114,21 +126,44 @@
     .clear-btn { font-family:'Space Mono',monospace; font-size:9px; letter-spacing:2px; color:var(--muted); background:none; border:1px solid var(--border); border-radius:2px; padding:2px 6px; cursor:pointer; text-transform:uppercase; transition:all .2s; }
     .clear-btn:hover { color:var(--accent2); border-color:var(--accent2); }
 
-    .recordings-list { max-height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; }
+    .recordings-list { max-height:190px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; }
     .recordings-list::-webkit-scrollbar { width:3px; }
     .recordings-list::-webkit-scrollbar-thumb { background:var(--border); }
     .recording-item { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:8px 10px; display:flex; align-items:center; gap:8px; transition:border-color .2s; cursor:pointer; }
     .recording-item:hover, .recording-item.active { border-color:var(--accent); }
     .rec-info { flex:1; min-width:0; }
     .rec-name { font-size:10px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .rec-meta { font-size:9px; color:var(--muted); margin-top:2px; letter-spacing:1px; }
+    .rec-meta { font-size:9px; color:var(--muted); margin-top:2px; letter-spacing:1px; display:flex; align-items:center; gap:6px; }
+    .transcript-badge { font-size:8px; letter-spacing:1px; color:var(--accent); border:1px solid rgba(232,255,0,.4); border-radius:2px; padding:1px 4px; }
     .rec-actions { display:flex; gap:4px; }
     .icon-btn { width:26px; height:26px; border-radius:3px; border:1px solid var(--border); background:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .2s; }
     .icon-btn:hover { border-color:var(--accent); background:rgba(232,255,0,.08); }
     .icon-btn svg { width:12px; height:12px; fill:var(--muted); }
     .icon-btn:hover svg, .icon-btn.playing svg { fill:var(--accent); }
+    .icon-btn.transcribing svg { animation:spin .7s linear infinite; }
 
     .empty-state { text-align:center; padding:24px; color:var(--muted); font-size:10px; letter-spacing:2px; text-transform:uppercase; border:1px dashed var(--border); border-radius:4px; }
+
+    /* ── TRANSCRIPT MODAL ── */
+    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:200; display:none; align-items:flex-end; }
+    .modal-overlay.open { display:flex; }
+    .modal { background:var(--surface); border:1px solid var(--border); border-top:2px solid var(--accent); border-radius:8px 8px 0 0; width:100%; padding:16px; max-height:70vh; display:flex; flex-direction:column; }
+    .modal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .modal-title { font-size:10px; letter-spacing:3px; color:var(--accent); text-transform:uppercase; }
+    .modal-close { background:none; border:1px solid var(--border); color:var(--muted); border-radius:3px; width:24px; height:24px; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; }
+    .modal-close:hover { border-color:var(--accent2); color:var(--accent2); }
+    .modal-rec-name { font-size:10px; color:var(--muted); margin-bottom:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:1px; }
+    .transcript-text { flex:1; overflow-y:auto; font-size:11px; line-height:1.8; color:var(--text); letter-spacing:.5px; background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:12px; min-height:80px; max-height:200px; white-space:pre-wrap; word-break:break-word; }
+    .transcript-text::-webkit-scrollbar { width:3px; }
+    .transcript-text::-webkit-scrollbar-thumb { background:var(--border); }
+    .modal-actions { display:flex; gap:8px; margin-top:12px; }
+    .modal-btn { flex:1; font-family:'Space Mono',monospace; font-size:9px; letter-spacing:2px; text-transform:uppercase; border-radius:3px; padding:8px; cursor:pointer; transition:all .2s; border:1px solid var(--border); background:none; color:var(--muted); }
+    .modal-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .modal-btn.copy-btn.copied { border-color:var(--green); color:var(--green); }
+    .modal-loading { display:flex; align-items:center; justify-content:center; gap:10px; padding:30px; color:var(--muted); font-size:10px; letter-spacing:2px; }
+    .modal-loading .spin { width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; flex-shrink:0; }
+    .modal-error { color:var(--accent2); font-size:10px; letter-spacing:1px; text-align:center; padding:20px; line-height:1.7; }
+    .modal-error a { color:var(--accent); text-decoration:none; cursor:pointer; }
 
     .notif { position:fixed; bottom:10px; left:50%; transform:translateX(-50%) translateY(40px); background:var(--accent); color:#000; font-size:10px; letter-spacing:2px; text-transform:uppercase; padding:6px 14px; border-radius:2px; transition:transform .3s; white-space:nowrap; z-index:100; }
     .notif.show { transform:translateX(-50%) translateY(0); }
@@ -137,8 +172,11 @@
 <body>
 <div class="container">
   <div class="header">
-    <div class="logo">INTERVIEWLENS</div>
-    <div class="status-dot" id="statusDot"></div>
+    <div class="header-left">
+      <div class="logo">INTERVIEWLENS</div>
+      <div class="status-dot" id="statusDot"></div>
+    </div>
+    <button class="settings-btn" id="settingsBtn" title="Settings">⚙</button>
   </div>
 
   <div class="tabs">
@@ -190,6 +228,13 @@
       <input class="name-input" id="nameInput" type="text" placeholder="Enter name…"/>
     </div>
 
+    <div class="transcribe-row">
+      <button class="transcribe-btn" id="reviewTranscribeBtn">
+        <div class="spin"></div>
+        <span>⚡ Transcribe with Groq</span>
+      </button>
+    </div>
+
     <div class="review-actions">
       <button class="action-btn discard" id="discardBtn">✕ Discard</button>
       <button class="action-btn save" id="saveBtn">↓ Save to disk</button>
@@ -215,6 +260,25 @@
     </div>
   </div>
 </div>
+
+<!-- TRANSCRIPT MODAL -->
+<div class="modal-overlay" id="transcriptModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Transcript</span>
+      <button class="modal-close" id="modalClose">✕</button>
+    </div>
+    <div class="modal-rec-name" id="modalRecName"></div>
+    <div id="modalBody">
+      <div class="transcript-text" id="transcriptText"></div>
+    </div>
+    <div class="modal-actions" id="modalActions">
+      <button class="modal-btn copy-btn" id="copyBtn">Copy text</button>
+      <button class="modal-btn" id="retranscribeBtn">Re-transcribe</button>
+    </div>
+  </div>
+</div>
+
 <div class="notif" id="notif"></div>
 <script src="popup.js"></script>
 </body>

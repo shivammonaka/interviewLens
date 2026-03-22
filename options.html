@@ -2,40 +2,89 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <title>VoiceSnap — Setup</title>
+  <title>InterviewLens — Settings</title>
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Bebas+Neue&display=swap" rel="stylesheet">
   <style>
-    :root { --bg:#0a0a0a; --surface:#111; --border:#222; --accent:#e8ff00; --accent2:#ff3c3c; --text:#f0f0f0; --muted:#555; }
+    :root { --bg:#0a0a0a; --surface:#111; --border:#222; --accent:#e8ff00; --accent2:#ff3c3c; --text:#f0f0f0; --muted:#555; --green:#4caf50; }
     * { margin:0; padding:0; box-sizing:border-box; }
     body { background:var(--bg); color:var(--text); font-family:'Space Mono',monospace; min-height:100vh; display:flex; align-items:center; justify-content:center; }
-    .card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:48px; max-width:480px; width:100%; text-align:center; }
-    .logo { font-family:'Bebas Neue',sans-serif; font-size:42px; letter-spacing:4px; color:var(--accent); text-shadow:0 0 30px rgba(232,255,0,.4); margin-bottom:8px; }
+    body::before { content:''; position:fixed; inset:0; pointer-events:none; background-image:linear-gradient(rgba(232,255,0,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(232,255,0,.03) 1px,transparent 1px); background-size:20px 20px; }
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:48px; max-width:520px; width:100%; position:relative; z-index:1; }
+    .logo { font-family:'Bebas Neue',sans-serif; font-size:36px; letter-spacing:4px; color:var(--accent); text-shadow:0 0 30px rgba(232,255,0,.4); margin-bottom:4px; }
     .subtitle { font-size:10px; letter-spacing:3px; color:var(--muted); text-transform:uppercase; margin-bottom:40px; }
-    .mic-icon { font-size:64px; margin-bottom:24px; }
-    .title { font-size:14px; letter-spacing:2px; text-transform:uppercase; margin-bottom:12px; }
-    .desc { font-size:11px; color:var(--muted); line-height:1.8; margin-bottom:32px; letter-spacing:1px; }
-    .btn { font-family:'Space Mono',monospace; font-size:12px; letter-spacing:3px; text-transform:uppercase; background:var(--accent); color:#000; border:none; padding:14px 32px; border-radius:4px; cursor:pointer; transition:all .2s; width:100%; }
-    .btn:hover { background:#fff; }
-    .btn:disabled { background:#1a3a1a; color:#4caf50; border:2px solid #4caf50; cursor:not-allowed; font-size:14px; }
-    .status { margin-top:24px; font-size:11px; letter-spacing:2px; text-transform:uppercase; padding:12px; border-radius:4px; display:none; }
-    .status.success { display:block; background:rgba(76,175,80,.15); border:1px solid #4caf50; color:#4caf50; font-size:13px; }
+
+    .section { margin-bottom:32px; }
+    .section-title { font-size:10px; letter-spacing:3px; color:var(--accent); text-transform:uppercase; margin-bottom:16px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+
+    /* Mic permission */
+    .mic-row { display:flex; align-items:center; gap:16px; }
+    .mic-icon-wrap { font-size:32px; }
+    .mic-text { flex:1; }
+    .mic-text .label { font-size:11px; letter-spacing:1px; margin-bottom:4px; }
+    .mic-text .desc { font-size:10px; color:var(--muted); line-height:1.6; }
+    .mic-btn { font-family:'Space Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; background:var(--accent); color:#000; border:none; padding:10px 20px; border-radius:4px; cursor:pointer; transition:all .2s; white-space:nowrap; }
+    .mic-btn:hover { background:#fff; }
+    .mic-btn:disabled { background:#1a3a1a; color:#4caf50; border:2px solid #4caf50; cursor:not-allowed; }
+
+    /* API key */
+    .field-label { font-size:9px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-bottom:8px; }
+    .field-row { display:flex; gap:8px; }
+    .api-input { flex:1; background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:10px 12px; color:var(--text); font-family:'Space Mono',monospace; font-size:12px; outline:none; transition:border-color .2s; letter-spacing:1px; }
+    .api-input:focus { border-color:var(--accent); }
+    .api-input::placeholder { color:var(--muted); letter-spacing:0; }
+    .save-btn { font-family:'Space Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; background:var(--accent); color:#000; border:none; padding:10px 18px; border-radius:4px; cursor:pointer; transition:all .2s; }
+    .save-btn:hover { background:#fff; }
+
+    .hint { font-size:10px; color:var(--muted); margin-top:10px; line-height:1.7; }
+    .hint a { color:var(--accent); text-decoration:none; }
+    .hint a:hover { text-decoration:underline; }
+
+    .status { margin-top:12px; font-size:11px; letter-spacing:1px; padding:10px 12px; border-radius:4px; display:none; }
+    .status.success { display:block; background:rgba(76,175,80,.12); border:1px solid #4caf50; color:#4caf50; }
     .status.error { display:block; background:rgba(255,60,60,.1); border:1px solid var(--accent2); color:var(--accent2); }
-    .close-hint { margin-top:20px; font-size:12px; color:#4caf50; letter-spacing:2px; display:none; text-transform:uppercase; }
+    .status.info { display:block; background:rgba(232,255,0,.06); border:1px solid rgba(232,255,0,.3); color:var(--accent); }
+
+    .key-preview { font-size:10px; color:var(--muted); margin-top:8px; font-family:'Space Mono',monospace; letter-spacing:1px; }
+    .key-preview span { color:var(--text); }
+
+    .clear-key { font-family:'Space Mono',monospace; font-size:9px; letter-spacing:1px; color:var(--muted); background:none; border:1px solid var(--border); border-radius:3px; padding:3px 8px; cursor:pointer; margin-left:8px; }
+    .clear-key:hover { color:var(--accent2); border-color:var(--accent2); }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="logo">VoiceSnap</div>
-    <div class="subtitle">Audio Recorder Setup</div>
-    <div class="mic-icon">🎙️</div>
-    <div class="title">Microphone Access Required</div>
-    <div class="desc">
-      VoiceSnap needs access to your microphone to record audio.<br><br>
-      Click the button below and then click <strong style="color:var(--text)">Allow</strong> when Chrome asks.
+    <div class="logo">INTERVIEWLENS</div>
+    <div class="subtitle">Settings</div>
+
+    <!-- Mic permission -->
+    <div class="section">
+      <div class="section-title">Microphone</div>
+      <div class="mic-row">
+        <div class="mic-icon-wrap">🎙️</div>
+        <div class="mic-text">
+          <div class="label">Microphone Access</div>
+          <div class="desc">Required to record audio from your microphone.</div>
+        </div>
+        <button class="mic-btn" id="allowBtn">Allow</button>
+      </div>
+      <div class="status" id="micStatus"></div>
     </div>
-    <button class="btn" id="allowBtn">Allow Microphone Access</button>
-    <div class="status" id="status"></div>
-    <div class="close-hint" id="closeHint">You can close this tab and start using the extension.</div>
+
+    <!-- Groq API key -->
+    <div class="section">
+      <div class="section-title">Groq API Key — Transcription</div>
+      <div class="field-label">API Key</div>
+      <div class="field-row">
+        <input class="api-input" id="apiInput" type="password" placeholder="gsk_…" autocomplete="off" spellcheck="false"/>
+        <button class="save-btn" id="saveKeyBtn">Save</button>
+      </div>
+      <div class="key-preview" id="keyPreview"></div>
+      <div class="hint">
+        Get a free API key at <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>.<br>
+        Used only for audio transcription via Groq's Whisper model. Stored locally in your browser.
+      </div>
+      <div class="status" id="keyStatus"></div>
+    </div>
   </div>
   <script src="options.js"></script>
 </body>
