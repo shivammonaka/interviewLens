@@ -8,13 +8,11 @@
     :root {
       --bg: #0a0a0a;
       --surface: #111;
-      --surface2: #161616;
       --border: #222;
       --accent: #e8ff00;
       --accent2: #ff3c3c;
       --text: #f0f0f0;
       --muted: #555;
-      --green: #4caf50;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -35,19 +33,16 @@
         linear-gradient(rgba(232,255,0,.03) 1px, transparent 1px),
         linear-gradient(90deg, rgba(232,255,0,.03) 1px, transparent 1px);
       background-size: 20px 20px;
-      z-index: 0;
     }
 
-    /* ── Layout ── */
     .page {
       position: relative;
       z-index: 1;
-      max-width: 900px;
+      max-width: 760px;
       margin: 0 auto;
       padding: 48px 24px 80px;
     }
 
-    /* ── Header ── */
     .header {
       display: flex;
       align-items: flex-end;
@@ -72,7 +67,6 @@
       padding-bottom: 6px;
     }
 
-    /* ── Section ── */
     .section {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -94,45 +88,16 @@
       gap: 8px;
     }
 
-    .badge {
-      background: rgba(232,255,0,.1);
-      border: 1px solid rgba(232,255,0,.2);
-      color: var(--accent);
+    .badge-optional {
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
+      color: var(--muted);
       font-size: 8px;
       letter-spacing: 1px;
       padding: 2px 7px;
       border-radius: 3px;
     }
 
-    .badge.optional {
-      background: rgba(255,255,255,.04);
-      border-color: var(--border);
-      color: var(--muted);
-    }
-
-    /* ── Transcript display ── */
-    #transcriptBox {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 16px;
-      font-size: 12px;
-      line-height: 1.8;
-      color: var(--text);
-      min-height: 120px;
-      max-height: 260px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-      letter-spacing: .3px;
-    }
-
-    #transcriptBox.empty {
-      color: var(--muted);
-      font-style: italic;
-    }
-
-    /* ── Textarea inputs ── */
     .field-label {
       font-size: 9px;
       letter-spacing: 2px;
@@ -161,35 +126,12 @@
     textarea::placeholder { color: var(--muted); }
 
     #problemInput { min-height: 90px; }
-    #codeInput    { min-height: 120px; font-size: 11px; }
+    #codeInput    { min-height: 130px; }
 
-    /* ── Prompt output ── */
-    #promptBox {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 16px;
-      font-size: 11px;
-      line-height: 1.8;
-      color: #aaa;
-      min-height: 160px;
-      max-height: 380px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-      letter-spacing: .3px;
-      cursor: text;
-      user-select: text;
-    }
-
-    #promptBox.empty { color: var(--muted); font-style: italic; }
-    #promptBox.has-content { color: var(--text); }
-
-    /* ── Action bar ── */
     .action-bar {
       display: flex;
       gap: 10px;
-      margin-top: 16px;
+      margin-top: 24px;
       flex-wrap: wrap;
     }
 
@@ -200,7 +142,7 @@
       text-transform: uppercase;
       border: none;
       border-radius: 4px;
-      padding: 10px 20px;
+      padding: 11px 22px;
       cursor: pointer;
       transition: all .2s;
       display: flex;
@@ -208,38 +150,24 @@
       gap: 8px;
     }
 
-    .btn-primary {
-      background: var(--accent);
-      color: #000;
-      font-weight: 700;
-    }
+    .btn-primary { background: var(--accent); color: #000; font-weight: 700; }
     .btn-primary:hover { background: #fff; }
-    .btn-primary:disabled { background: #333; color: var(--muted); cursor: not-allowed; }
 
-    .btn-ghost {
-      background: none;
-      color: var(--muted);
-      border: 1px solid var(--border);
-    }
+    .btn-ghost { background: none; color: var(--muted); border: 1px solid var(--border); }
     .btn-ghost:hover { color: var(--text); border-color: #444; }
 
-    .btn-danger {
-      background: none;
-      color: var(--accent2);
-      border: 1px solid rgba(255,60,60,.25);
-    }
-    .btn-danger:hover { background: rgba(255,60,60,.08); }
-
-    .btn .icon { font-size: 13px; line-height: 1; }
-
-    /* ── Divider ── */
-    .divider {
-      height: 1px;
-      background: var(--border);
-      margin: 20px 0;
+    #loadingState, #emptyState {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 2px;
     }
 
-    /* ── Status / Toast ── */
+    .empty-icon { font-size: 40px; margin-bottom: 16px; }
+    .empty-title { font-size: 14px; letter-spacing: 2px; color: var(--text); margin-bottom: 10px; }
+    .empty-desc { font-size: 10px; color: var(--muted); line-height: 1.8; }
+
     #toast {
       position: fixed;
       bottom: 28px;
@@ -256,98 +184,31 @@
       transition: opacity .25s, transform .25s;
       pointer-events: none;
       z-index: 100;
-      white-space: nowrap;
     }
 
-    #toast.show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.error { color: var(--accent2); border-color: rgba(255,60,60,.3); }
 
-    #toast.error {
-      color: var(--accent2);
-      border-color: rgba(255,60,60,.3);
-    }
-
-    /* ── Loading state ── */
-    #loadingState {
-      text-align: center;
-      padding: 60px 20px;
-      color: var(--muted);
-      font-size: 11px;
-      letter-spacing: 2px;
-    }
-
-    .spin {
-      display: inline-block;
-      width: 18px;
-      height: 18px;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin .7s linear infinite;
-      margin-right: 10px;
-      vertical-align: middle;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── Empty state ── */
-    #emptyState {
-      text-align: center;
-      padding: 60px 20px;
-    }
-
-    .empty-icon { font-size: 40px; margin-bottom: 16px; }
-    .empty-title { font-size: 14px; letter-spacing: 2px; color: var(--text); margin-bottom: 10px; }
-    .empty-desc { font-size: 10px; letter-spacing: 1px; color: var(--muted); line-height: 1.8; }
-
-    /* ── Token count ── */
-    .meta-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-top: 10px;
-    }
-
-    .meta-text {
-      font-size: 9px;
-      letter-spacing: 1px;
-      color: var(--muted);
-    }
-
-    .char-count { color: #666; }
-
-    /* ── Scrollbar ── */
     ::-webkit-scrollbar { width: 5px; }
-    ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: #333; }
 
-    /* ── Responsive ── */
     @media (max-width: 600px) {
       .page { padding: 24px 16px 60px; }
       .logo { font-size: 32px; }
       .action-bar { flex-direction: column; }
-      .btn { justify-content: center; }
     }
   </style>
 </head>
 <body>
   <div class="page">
 
-    <!-- Header -->
     <div class="header">
       <div class="logo">INTERVIEWLENS</div>
       <div class="header-sub">AI Review</div>
     </div>
 
-    <!-- Loading -->
-    <div id="loadingState">
-      <span class="spin"></span> Loading transcript…
-    </div>
+    <div id="loadingState">Loading…</div>
 
-    <!-- Empty state (no transcript) -->
     <div id="emptyState" style="display:none">
       <div class="empty-icon">📭</div>
       <div class="empty-title">No Transcript Found</div>
@@ -357,84 +218,45 @@
       </div>
     </div>
 
-    <!-- Main content -->
     <div id="mainContent" style="display:none">
 
-      <!-- Transcript -->
       <div class="section">
         <div class="section-title">
-          Transcript <span class="badge">Required</span>
-        </div>
-        <div id="transcriptBox"></div>
-        <div class="meta-row">
-          <span class="meta-text char-count" id="transcriptChars"></span>
-          <button class="btn btn-ghost" id="clearTranscriptBtn" style="padding:6px 12px; font-size:9px;">
-            <span class="icon">✕</span> Clear
-          </button>
-        </div>
-      </div>
-
-      <!-- Optional: Problem statement -->
-      <div class="section">
-        <div class="section-title">
-          Problem Statement <span class="badge optional">Optional</span>
+          Problem Statement <span class="badge-optional">Optional</span>
         </div>
         <div class="field-label">Paste the interview problem here</div>
         <textarea id="problemInput" placeholder="e.g. Given an array of integers, return indices of the two numbers that add up to a target…"></textarea>
       </div>
 
-      <!-- Optional: Code -->
       <div class="section">
         <div class="section-title">
-          Your Code <span class="badge optional">Optional</span>
+          Your Code <span class="badge-optional">Optional</span>
         </div>
-        <div class="field-label">Paste your solution code here</div>
-        <textarea id="codeInput" placeholder="def two_sum(nums, target):&#10;    seen = {}&#10;    for i, n in enumerate(nums):&#10;        if target - n in seen:&#10;            return [seen[target - n], i]&#10;        seen[n] = i"></textarea>
+        <div class="field-label">Paste your solution here</div>
+        <textarea id="codeInput" placeholder="def two_sum(nums, target):
+    seen = {}
+    for i, n in enumerate(nums):
+        if target - n in seen:
+            return [seen[target - n], i]
+        seen[n] = i"></textarea>
       </div>
 
-      <!-- LLM Prompt output -->
-      <div class="section">
-        <div class="section-title">
-          LLM Prompt <span class="badge">Ready to copy</span>
-        </div>
-        <div id="promptBox" class="empty">Click "Build Prompt" to generate your LLM prompt…</div>
-        <div class="meta-row">
-          <span class="meta-text char-count" id="promptChars"></span>
-          <span class="meta-text" id="promptHint" style="color:#333;">Tip: paste into ChatGPT, Claude, or Gemini</span>
-        </div>
-        <div class="action-bar">
-          <button class="btn btn-primary" id="buildBtn">
-            <span class="icon">⚡</span> Build Prompt
-          </button>
-          <button class="btn btn-primary" id="copyBtn" style="display:none">
-            <span class="icon">📋</span> Copy to Clipboard
-          </button>
-          <button class="btn btn-ghost" id="openAiBtn" style="display:none" title="Open Claude.ai in a new tab">
-            <span class="icon">🤖</span> Open Claude
-          </button>
-          <button class="btn btn-ghost" id="openChatGptBtn" style="display:none" title="Open ChatGPT in a new tab">
-            <span class="icon">💬</span> Open ChatGPT
-          </button>
-        </div>
-      </div>
-
-      <!-- Danger zone -->
-      <div class="section" style="border-color: rgba(255,60,60,.15);">
-        <div class="section-title" style="color: var(--accent2);">Danger Zone</div>
-        <div style="font-size:10px; color:var(--muted); margin-bottom:14px; line-height:1.7;">
-          Discard the transcript from storage. This only removes it from this review page — your saved recordings are unaffected.
-        </div>
-        <button class="btn btn-danger" id="discardBtn">
-          <span class="icon">🗑</span> Discard Transcript
+      <div class="action-bar">
+        <button class="btn btn-primary" id="copyBtn">
+          <span>📋</span> Copy Prompt for LLM
+        </button>
+        <button class="btn btn-ghost" id="openClaudeBtn">
+          <span>🤖</span> Open Claude
+        </button>
+        <button class="btn btn-ghost" id="openChatGptBtn">
+          <span>💬</span> Open ChatGPT
         </button>
       </div>
 
-    </div><!-- /mainContent -->
-  </div><!-- /page -->
+    </div>
+  </div>
 
-  <!-- Toast -->
   <div id="toast"></div>
-
   <script src="review.js"></script>
 </body>
 </html>
