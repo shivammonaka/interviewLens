@@ -145,7 +145,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       // ── Pause ─────────────────────────────────────────────────────────
       case 'PAUSE_RECORDING':
         if (!state.isRecording || state.isPaused) { sendResponse({ ok: false }); break; }
-        chrome.runtime.sendMessage({ type: 'OFFSCREEN_PAUSE' });
+        msgOffscreen({ type: 'OFFSCREEN_PAUSE' });
         state.pausedElapsed += Math.floor((Date.now() - state.startTime) / 1000);
         state.startTime = null;
         state.isPaused  = true;
@@ -156,7 +156,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       // ── Resume ────────────────────────────────────────────────────────
       case 'RESUME_RECORDING':
         if (!state.isRecording || !state.isPaused) { sendResponse({ ok: false }); break; }
-        chrome.runtime.sendMessage({ type: 'OFFSCREEN_RESUME' });
+        msgOffscreen({ type: 'OFFSCREEN_RESUME' });
         state.startTime = Date.now();
         state.isPaused  = false;
         sendResponse({ ok: true });
@@ -265,7 +265,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             break;
           }
 
-          const text = await transcribeWithGroq(dataUrl, apiKey);
+          // Keep the service worker alive for the duration of the fetch
+          // (Groq transcription can take 5–30s; SW would otherwise be killed)
+          const keepAliveId = setInterval(() => chrome.runtime.getPlatformInfo(() => {}), 20000);
+
+          let text;
+          try {
+            text = await transcribeWithGroq(dataUrl, apiKey);
+          } finally {
+            clearInterval(keepAliveId);
+          }
 
           // If saving to a recording, persist it
           if (msg.index !== undefined && state.recordings[msg.index]) {

@@ -139,6 +139,11 @@ function startTimer(init=0) {
   clearInterval(timerInterval);
   timerInterval = setInterval(() => { elapsed++; timerEl.textContent = fmt(elapsed); }, 1000);
 }
+// Resume the local tick without resetting elapsed (avoids fighting with polling)
+function resumeTimer() {
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => { elapsed++; timerEl.textContent = fmt(elapsed); }, 1000);
+}
 function stopTimer()  { clearInterval(timerInterval); timerInterval = null; }
 function resetTimer() { stopTimer(); elapsed = 0; timerEl.textContent = '00:00'; }
 
@@ -171,14 +176,27 @@ function startPolling() {
     const s = await bgMsg({ type: 'GET_STATE' });
     if (!s) return;
     if (s.waveform) liveWaveform = s.waveform;
-    if (s.isRecording && !s.isPaused) { elapsed = s.elapsed; timerEl.textContent = fmt(elapsed); }
+    // Only sync elapsed/timer from background during active (non-paused) recording
+    if (s.isRecording && !s.isPaused) {
+      elapsed = s.elapsed;
+      timerEl.textContent = fmt(elapsed);
+    }
 
+    // Recording ended — stop polling FIRST, then update UI
     if (uiState !== 'idle' && !s.isRecording) {
+      stopPolling();
       setUI('idle');
       resetTimer();
       currentRecs = s.recordings || [];
+      renderList(currentRecs);
+      // Pending may have arrived in the same state update
+      if (s.pending && !pendingRec) {
+        showReview(s.pending);
+      }
+      return;
     }
 
+    // Detect pending while idle (background finished blob conversion slightly later)
     if (uiState === 'idle' && s.pending && !pendingRec) {
       stopPolling();
       showReview(s.pending);
@@ -217,10 +235,12 @@ mpBtn.addEventListener('click', () => {
     return;
   }
   if (!reviewAudio) {
-    reviewAudio = new Audio(pendingRec.dataUrl);
+    reviewAudio = new Audio();
     reviewAudio.ontimeupdate = () => {
       if (!reviewAudio) return;
-      const pct = (reviewAudio.currentTime / reviewAudio.duration) * 100 || 0;
+      const dur = reviewAudio.duration;
+      if (!dur || !isFinite(dur)) return;
+      const pct = (reviewAudio.currentTime / dur) * 100 || 0;
       mpFill.style.width = pct + '%';
       mpTime.textContent = fmt(Math.floor(reviewAudio.currentTime));
     };
@@ -228,6 +248,7 @@ mpBtn.addEventListener('click', () => {
       mpIcon.innerHTML = PLAY_PATH;
       mpBtn.classList.remove('playing');
     };
+    reviewAudio.src = pendingRec.dataUrl;
   }
   reviewAudio.play();
   mpIcon.innerHTML = PAUSE_PATH_ICON;
@@ -236,7 +257,9 @@ mpBtn.addEventListener('click', () => {
 
 mpProgress.addEventListener('click', e => {
   if (!reviewAudio) return;
-  reviewAudio.currentTime = (e.offsetX / mpProgress.offsetWidth) * reviewAudio.duration;
+  const dur = reviewAudio.duration;
+  if (!dur || !isFinite(dur)) return;
+  reviewAudio.currentTime = (e.offsetX / mpProgress.offsetWidth) * dur;
 });
 
 // Transcribe button in review panel
@@ -252,10 +275,11 @@ reviewTranscribeBtn.addEventListener('click', async () => {
   reviewTranscribeBtn.classList.remove('loading');
 
   if (res.ok) {
-    pendingRec.transcript = res.text;
+    if (pendingRec) pendingRec.transcript = res.text;
     reviewTranscribeBtn.querySelector('span').textContent = '✓ Transcribed — view';
     // Open modal immediately so user can view/copy
-    openTranscriptModal(-1, pendingRec.name, res.text);
+    const recName = pendingRec?.name || '';
+    openTranscriptModal(-1, recName, res.text);
   } else {
     reviewTranscribeBtn.querySelector('span').textContent = '⚡ Transcribe with Groq';
     if (res.error?.includes('No API key')) {
@@ -301,38 +325,42 @@ discardBtn.addEventListener('click', async () => {
 const DEFAULT_LLM_TEMPLATE =
 `You are an expert technical interview coach. Analyze the following interview transcript and give me brutally honest, actionable feedback.
 
+IMPORTANT — FORMAT RULES (follow exactly):
+- Use ## before every section title, e.g. ## Communication
+- Use bullet points (- ) for all lists
+- Do not use bold (**) for section titles, only for emphasis within text
+- Do not add any intro paragraph before the first section
+
 ---
 
 {{transcript}}
 
 ---
 {{problem}}{{code}}
-Evaluate me on these dimensions:
-
-**Communication**
+## Communication
 - Did I explain my thought process out loud before coding?
 - Did I walk through my approach step by step?
 - Did I talk while coding or go silent?
 - Did I ask clarifying questions?
 
-**Technical Reasoning**
+## Technical Reasoning
 - Did I discuss the algorithm and why I chose it?
 - Did I mention time and space complexity?
 - Did I consider edge cases?
 - Did I propose brute force first then optimize?
 
-**Problem Solving Approach**
+## Problem Solving Approach
 - Did I break the problem down before jumping to code?
 - Did I get stuck and how did I recover?
 - Did I validate my solution with examples?
 
-**Strong Points**
+## Strong Points
 List what I did well. Be specific with moments from the transcript.
 
-**Weak Points & What to Improve**
+## Weak Points & What to Improve
 List exactly where I fumbled. Be direct — no sugarcoating. For each weak point, tell me specifically what I should have said or done instead.
 
-**Overall Assessment**
+## Overall Assessment
 One short paragraph summary. End with the single most important habit I need to build before my next interview.`;
 
 async function buildLlmPrompt(transcript, problem = '', code = '') {
@@ -428,7 +456,7 @@ function setUI(s) {
   pauseIcon.innerHTML  = s === 'paused' ? RESUME_PATH : PAUSE_PATH;
   pauseLbl.textContent = s === 'paused' ? 'Resume' : 'Pause';
   idleLine.style.display = s === 'idle' ? 'block' : 'none';
-  if (s === 'idle') { stopWaveform(); }
+  if (s === 'idle') { stopWaveform(); stopTimer(); stopPolling(); }
   else if (!animFrameId) drawWaveform();
 }
 
@@ -447,7 +475,12 @@ recordBtn.addEventListener('click', async () => {
   if (uiState !== 'idle') {
     showNotif('Saving…', '#333');
     const res = await bgMsg({ type: 'STOP_RECORDING' });
-    if (res.ok) { setUI('idle'); resetTimer(); startPolling(); }
+    if (res.ok) {
+      setUI('idle');
+      resetTimer();
+      // Poll briefly for the RECORDING_DONE / pending to arrive
+      startPolling();
+    }
     else showNotif('Nothing to stop', '#ff3c3c');
   } else {
     try {
@@ -472,7 +505,7 @@ pauseBtn.addEventListener('click', async () => {
     if (res.ok) { setUI('paused'); stopTimer(); liveWaveform = new Array(128).fill(128); }
   } else if (uiState === 'paused') {
     const res = await bgMsg({ type: 'RESUME_RECORDING' });
-    if (res.ok) { setUI('recording'); startTimer(elapsed); }
+    if (res.ok) { setUI('recording'); resumeTimer(); }
   }
 });
 
@@ -487,7 +520,9 @@ function playLib(i) {
   nowPlaying.classList.add('active');
   libAudio.ontimeupdate = () => {
     if (!libAudio) return;
-    npFill.style.width = ((libAudio.currentTime / libAudio.duration) * 100 || 0) + '%';
+    const dur = libAudio.duration;
+    if (!dur || !isFinite(dur)) return;
+    npFill.style.width = ((libAudio.currentTime / dur) * 100 || 0) + '%';
     npTime.textContent = fmt(Math.floor(libAudio.currentTime));
   };
   libAudio.onended = stopLib;
@@ -504,7 +539,9 @@ function stopLib() {
 npStop.addEventListener('click', stopLib);
 npProgress.addEventListener('click', e => {
   if (!libAudio) return;
-  libAudio.currentTime = (e.offsetX / npProgress.offsetWidth) * libAudio.duration;
+  const dur = libAudio.duration;
+  if (!dur || !isFinite(dur)) return;
+  libAudio.currentTime = (e.offsetX / npProgress.offsetWidth) * dur;
 });
 
 // ── Library list ──────────────────────────────────────────────────────────
